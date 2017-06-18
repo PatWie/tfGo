@@ -1,5 +1,7 @@
 import argparse
 import numpy as np
+import glob
+import os
 
 READING_NAME = 1
 READING_DATA = 2
@@ -77,15 +79,19 @@ class SGFParser:
         return (k, v)
 
 
-def encode(color, x, y, move=False):
-    """Encode all moves into 16bits
+def encode(color, x, y, move=False, pass_move=False):
+    """Encode all moves into 16bits (easier to read in cpp and binary!!)
 
-    ----mcyyyyyxxxxx
+    ----mcyyyyyxxxxx (4bits left for additional information)
 
     x encoded column
     y encoded row
     c color [w=1, b=0]
     m isemove [move=1, add=0]
+    p ispass
+
+    TODO:
+        handle "pass move"
 
     Args:
         color (TYPE): Description
@@ -100,11 +106,13 @@ def encode(color, x, y, move=False):
     # assert x < 19
     # assert y < 19
 
-    value = 2**5 * y + x
+    value = 32 * y + x
     if color == 'W':
-        value += 2**10
+        value += 1024
     if move:
-        value += 2**11
+        value += 2048
+    if pass_move:
+        value += 4096
 
     byte1 = value % (2**8)
     byte2 = (value - byte1) / (2**8)
@@ -119,9 +127,9 @@ def encode(color, x, y, move=False):
     return [byte2, byte1]
 
 
-def convert2bin(sgf):
-
-    out = sgf + '.bin'
+def convert2bin(sgf, out=None):
+    if out is None:
+        out = sgf + '.bin'
     parser = SGFParser(sgf)
     content = [p for p in parser]
 
@@ -135,24 +143,29 @@ def convert2bin(sgf):
                 print 'missmatch SZ', v
                 return
 
+        # if k == 'RE':
+        #     if 'Resign' in v:
+        #         print "found ressign"
+        #         return
+
     bin_content = []
     # alright lets convert
     for k, v in content:
         if k == 'AB':
             for m in v:
-                print "no move"
                 x, y = ord(m[0]) - ord('a'), ord(m[1]) - ord('a')
-                bin_content += encode('B', x, y, False)
+                bin_content += encode('B', x, y, False, False)
         if k == 'AW':
             for m in v:
-                print "no move"
                 x, y = ord(m[0]) - ord('a'), ord(m[1]) - ord('a')
-                bin_content += encode('W', x, y, False)
+                bin_content += encode('W', x, y, False, False)
 
         if k in ['B', 'W']:
-            print "move"
-            x, y = ord(v[0]) - ord('a'), ord(v[1]) - ord('a')
-            bin_content += encode(k, x, y, True)
+            if len(v) == 0:
+                bin_content += encode(k, 0, 0, False, True)
+            else:
+                x, y = ord(v[0]) - ord('a'), ord(v[1]) - ord('a')
+                bin_content += encode(k, x, y, True, False)
 
     bin_content = np.array(bin_content).astype(np.uint8)
 
@@ -160,11 +173,22 @@ def convert2bin(sgf):
         f.write(bin_content.tobytes())
 
 
-def main(sgf):
-    convert2bin(sgf)
+def convet_single(sgf, sgfbin):
+    convert2bin(sgf, sgfbin)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--sgf', help='path to sgf file', required=True)
+    parser.add_argument('--input', help='convert all files in dir', default='', type=str)
+    parser.add_argument('--out', help='single dir with all binary files')
+    parser.add_argument('--sgf', help='path to sgf file')
+    parser.add_argument('--sgfbin', help='path to output')
     args = parser.parse_args()
-    main(args.sgf)
+
+    if args.input is not '':
+        for k, file in enumerate(glob.glob(args.input + "*/*.sgf")):
+            print k, file
+            in_fn = file
+            out_fn = '/tmp/out/%sbin' % os.path.basename(file)
+            convet_single(in_fn, out_fn)
+    else:
+        convet_single(args.sgf, args.sgfbin)
