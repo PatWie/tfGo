@@ -5,7 +5,7 @@
 import argparse
 from tensorpack import *
 import tensorflow as tf
-from go_db import GameDecoder
+from go_db import GameDecoder, DihedralGroup
 from tensorpack.tfutils.symbolic_functions import *
 from tensorpack.tfutils.summary import *
 
@@ -20,21 +20,21 @@ CHANNELS = 14
 
 class Model(ModelDesc):
     def _get_inputs(self):
-        return [InputDesc(tf.int32, (BATCH_SIZE, CHANNELS, SHAPE, SHAPE), 'board'),
-                InputDesc(tf.int32, (BATCH_SIZE), 'next_move')]
+        return [InputDesc(tf.int32, (None, CHANNELS, SHAPE, SHAPE), 'board'),
+                InputDesc(tf.int32, (None, ), 'next_move'),
+                InputDesc(tf.int32, (None, ), 'max_move')]
 
     def _build_graph(self, inputs):
-        board, label = inputs
+        board, label, _ = inputs
         board = tf.cast(board, tf.float32)
 
-        k = 128  # match version was 192
+        k = 4  # match version was 192
 
         layers = []
 
-        # pad to 23x23
+        # the policy model from https://gogameguru.com/i/2016/03/deepmind-mastering-go.pdf
         with argscope([Conv2D], nl=tf.nn.relu, kernel_shape=3, padding='VALID',
-                      stride=1, use_bias=False, data_format='NCHW',
-                      W_init=tf.truncated_normal_initializer(mean=0.0, stddev=1.0)):
+                      stride=1, use_bias=False, data_format='NCHW'):
             layers.append(tf.pad(board, [[0, 0], [0, 0], [2, 2], [2, 2]], mode='CONSTANT', name='pad1'))
             layers.append(Conv2D('conv1', layers[-1], k, kernel_shape=5))
 
@@ -45,30 +45,42 @@ class Model(ModelDesc):
 
             logits = Conv2D('conv_final', layers[-1], 1, kernel_shape=1, use_bias=True, nl=tf.identity)
 
+        prop = tf.nn.softmax(logits)
         logits = tf.identity(batch_flatten(logits), name='logits')
 
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=label)
-        loss = tf.reduce_mean(loss, name='xentropy-loss')
+        self.cost = tf.reduce_mean(loss, name='total_costs')
 
-        # wrong = prediction_incorrect(logits, label, 1, name='wrong-top1')
-        # add_moving_summary(tf.reduce_mean(wrong, name='train-error-top1'))
+        wrong1 = tf.reduce_mean(prediction_incorrect(logits, label, 1), name='wrong-top1')
+        wrong5 = tf.reduce_mean(prediction_incorrect(logits, label, 5), name='wrong-top1')
 
-        # wrong = prediction_incorrect(logits, label, 5, name='wrong-top5')
-        # add_moving_summary(tf.reduce_mean(wrong, name='train-error-top5'))
+        top1 = tf.reduce_mean(accuracy(logits, label, 1), name='accuracy-top1')
+        top5 = tf.reduce_mean(accuracy(logits, label, 5), name='accuracy-top5')
 
-        self.cost = tf.identity(loss, name='total_costs')
+        summary.add_moving_summary(top1, top5, wrong1, wrong5, self.cost)
 
-        summary.add_moving_summary(self.cost)
+        v = tf.concat([board[:, 0, :, :], board[:, 1, :, :], board[:, 2, :, :]], 2)
+        v = tf.expand_dims(v, axis=-1)
+        tf.summary.image('board', v, max_outputs=max(30, BATCH_SIZE))
+
+        prop = prop[:, 0, :, :]
+        prop = tf.reshape(prop, [-1, 19, 19, 1]) * 255.
+        expected = tf.one_hot(label, 19 * 19)
+        expected = tf.reshape(expected, [-1, 19, 19, 1]) * 255.
+        viz = tf.concat([prop, expected], axis=2) * 256
+        viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='viz')
+        tf.summary.image('prop, expected', viz, max_outputs=max(30, BATCH_SIZE))
 
     def _get_optimizer(self):
-        lr = symbolic_functions.get_scalar_var('learning_rate', 0.00000000003, summary=True)
+        lr = symbolic_functions.get_scalar_var('learning_rate', 0.003, summary=True)
         return tf.train.GradientDescentOptimizer(lr)
 
 
-def get_data(lmdb, suffle=False):
-    df = LMDBDataPoint(lmdb, shuffle=suffle)
-    df = GameDecoder(df)
-    df = PrefetchDataZMQ(df, 2)
+def get_data(lmdb, shuffle=False):
+    df = LMDBDataPoint(lmdb, shuffle=True)
+    df = GameDecoder(df, random=True)
+    df = AugmentImageComponents(df, [DihedralGroup()], index=[0])
+    df = PrefetchDataZMQ(df, 1)
     df = BatchData(df, BATCH_SIZE)
     return df
 
@@ -88,11 +100,11 @@ def get_config():
         ],
         extra_callbacks=[
             MovingAverageSummary(),
-            ProgressBar(['tower0/total_costs:0']),
+            ProgressBar(['tower0/total_costs:0', 'tower0/accuracy-top1:0', 'tower0/accuracy-top5:0']),
             MergeAllSummaries(),
             RunUpdateOps()
         ],
-        steps_per_epoch=ds_train.size(),
+        steps_per_epoch=ds_train.size(),  # ds_train.size()
         max_epoch=100,
     )
 

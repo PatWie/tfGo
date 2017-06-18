@@ -688,6 +688,16 @@ int planes_from_bytes(char *bytes, int byteslen, int* data, int len, int moves){
         Game.move(moves, &x, &y, &is_white, &is_move, &is_pass);
         rsl = 19*x + y;
 
+        // std::cout << "x " << x 
+        // << "\ty " << y 
+        // << "\tis_white " << is_white 
+        // << "\tis_move " << is_move 
+        // << "\tis_pass " << is_pass 
+        // << std::endl;
+
+        // std::cout << "moves" << moves << " ; " << ((int)Game.iters() - 1)<< " rsl " << rsl << std::endl;
+          
+
     }
 
     // TODO skip all pass/set situation to real moves

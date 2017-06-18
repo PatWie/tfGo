@@ -9,6 +9,7 @@ import glob
 import numpy as np
 import argparse
 from go_engine import goplanes
+from tensorpack.utils import get_rng
 
 
 class GoGamesFromDir(tp.dataflow.DataFlow):
@@ -37,14 +38,20 @@ class GoGamesFromDb(tp.dataflow.RNGDataFlow):
 
 class GameDecoder(MapData):
         """convert game into feature planes"""
-        def __init__(self, df, random=False):
+        def __init__(self, df, random=True):
+
+            self.rng = get_rng(self)
+
             def func(dp):
                 raw = dp[0]
                 max_moves = len(raw) / 2
 
-                m = max_moves
+                if max_moves < 10:
+                    return None
+
+                m = max_moves - 5
                 if random:
-                    m = self.rng.randint(max_moves)
+                    m = self.rng.randint(max_moves - 5)
 
                 planes = np.zeros((14 * 19 * 19), dtype=np.int32)
                 next_move = goplanes.planes_from_bytes(raw.tobytes(), planes, m)
@@ -52,8 +59,26 @@ class GameDecoder(MapData):
 
                 assert not np.isnan(planes).any()
 
-                return [planes, int(next_move)]
+                return [planes, int(next_move), int(max_moves)]
             super(GameDecoder, self).__init__(df, func)
+
+
+class DihedralGroup(imgaug.ImageAugmentor):
+    def __init__(self):
+        super(DihedralGroup, self).__init__()
+        self._init(locals())
+
+    def _get_augment_params(self, img):
+        return self.rng.randint(8)
+
+    def _augment(self, img, op):
+        # ddihedralgroup D4 = <a, b> where a^2=1, b^4=1
+        if op >= 4:
+            img = img[:, ::-1, :]
+            op -= 4
+        # no mirror, just rot
+        img = np.array([np.rot90(i, k=op) for i in img]).astype(np.int32)
+        return img
 
 
 if __name__ == '__main__':
