@@ -1,4 +1,6 @@
 #!/bin/bash
+# credits: https://github.com/TheDuck314/go-NN
+
 
 mkdir -p /tmp/data
 

@@ -62,8 +62,9 @@ private:
 class group_t
 {
 public:
-    group_t(field_t *anchor){
+    group_t(field_t *anchor, int groupid){
         stones.push_back(anchor);
+        id = groupid;
     }
     ~group_t(){}
 
@@ -91,6 +92,11 @@ public:
 
     void merge(group_t* other){      
         // merge two groups (current groupo should own other stones) 
+
+        // do not merge a group with itself
+        if(other->id == id)
+            return;
+          
         for(field_t * s : other->stones){
             s->group = this;
             stones.push_back(s);
@@ -104,17 +110,22 @@ public:
 
     // collection of pointers to stones
     std::vector<field_t *> stones;
+    int id;
 };
 
 
 class board_t
 {
 public:
+    int groupid;
+
+
     board_t() : turn(white), score_black(0.f), score_white(0.f){
         // tell each field its coordinate
         for (int h = 0; h < N; ++h)
             for (int w = 0; w < N; ++w)
                 fields[h][w].pos(h, w);
+        groupid = 0;
     }
 
     ~board_t(){}
@@ -277,7 +288,7 @@ public:
 
         // still single stone ? --> create new group
         if(current_stone.group == nullptr){
-            current_stone.group = new group_t(&current_stone);
+            current_stone.group = new group_t(&current_stone, groupid++);
         }
                     
     }
@@ -340,7 +351,7 @@ public:
 
                 // Liberties :8: Number of liberties (empty adjacent points)
                 if(fields[h][w].token() != empty){
-
+                      
                     const int num_liberties = fields[h][w].group->liberties(this);
 
                     if(num_liberties == 1)

@@ -1,3 +1,5 @@
+# inspiration from: https://github.com/HermanHiddema/sgfparser
+
 import argparse
 import numpy as np
 import glob
@@ -82,13 +84,13 @@ class SGFParser:
 def encode(color, x, y, move=False, pass_move=False):
     """Encode all moves into 16bits (easier to read in cpp and binary!!)
 
-    ----mcyyyyyxxxxx (4bits left for additional information)
+    ---pmcyyyyyxxxxx (4bits left for additional information)
 
     x encoded column
     y encoded row
     c color [w=1, b=0]
     m isemove [move=1, add=0]
-    p ispass
+    p ispass  [pass=1, nopass=0]
 
     TODO:
         handle "pass move"
@@ -188,7 +190,10 @@ if __name__ == '__main__':
         for k, file in enumerate(glob.glob(args.input + "*/*.sgf")):
             print k, file
             in_fn = file
-            out_fn = '/tmp/out/%sbin' % os.path.basename(file)
-            convet_single(in_fn, out_fn)
+            out_fn = '%s/%sbin' % (args.out, os.path.basename(file))
+            try:
+                convet_single(in_fn, out_fn)
+            except Exception as e:
+                print e
     else:
         convet_single(args.sgf, args.sgfbin)

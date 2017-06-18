@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Author: Patrick Wieschollek <mail@patwie.com>
+
+
 from go_engine import goplanes
 import numpy as np
 import argparse
