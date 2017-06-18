@@ -585,7 +585,7 @@ int main(int argc, char const *argv[])
 
 
 
-void planes_from_file(char *str, int strlen, int* data, int len, int moves){
+int planes_from_file(char *str, int strlen, int* data, int len, int moves){
     // load game
     std::string path = std::string(str);
     SGFbin Game(path);
@@ -593,7 +593,7 @@ void planes_from_file(char *str, int strlen, int* data, int len, int moves){
     // create board
     board_t b;
 
-    for (int i = 0; i < std::min(moves, (int)Game.iters()); ++i)
+    for (int i = 0; i < std::min(moves, (int)Game.iters() - 1); ++i)
     {
         int x = 0, y = 0;
         bool is_white = true, is_move = true, is_pass=true;
@@ -623,10 +623,24 @@ void planes_from_file(char *str, int strlen, int* data, int len, int moves){
         }
     }
 
+    int rsl = 0;
+    {
+        int x = 0, y = 0;
+        bool is_white = true, is_move = true, is_pass=true;
+        token_t turn = white;
+        Game.move(moves, &x, &y, &is_white, &is_move, &is_pass);
+        rsl = 19*x + y;
+
+    }
+
+    // TODO skip all pass/set situation to real moves
+
+
     b.feature_planes(data);    
+    return rsl;
 }
 
-void planes_from_bytes(char *bytes, int byteslen, int* data, int len, int moves){
+int planes_from_bytes(char *bytes, int byteslen, int* data, int len, int moves){
 
     SGFbin Game((unsigned char*) bytes, byteslen);
 
@@ -634,7 +648,7 @@ void planes_from_bytes(char *bytes, int byteslen, int* data, int len, int moves)
     board_t b;
 
 
-    for (int i = 0; i < std::min(moves, (int)Game.iters()); ++i)
+    for (int i = 0; i < std::min(moves, (int)Game.iters() - 1); ++i)
     {
         int x = 0, y = 0;
         bool is_white = true, is_move = true, is_pass=true;
@@ -665,5 +679,19 @@ void planes_from_bytes(char *bytes, int byteslen, int* data, int len, int moves)
     }
 
     b.feature_planes(data);  
+
+    int rsl = 0;
+    {
+        int x = 0, y = 0;
+        bool is_white = true, is_move = true, is_pass=true;
+        token_t turn = white;
+        Game.move(moves, &x, &y, &is_white, &is_move, &is_pass);
+        rsl = 19*x + y;
+
+    }
+
+    // TODO skip all pass/set situation to real moves
+
+    return rsl;
 
 }

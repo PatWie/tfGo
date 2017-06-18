@@ -14,16 +14,14 @@ from go_engine import goplanes
 class GoGamesFromDir(tp.dataflow.DataFlow):
     """Yield frame triplets for phase 0
     """
-    def __init__(self, pattern):
+    def __init__(self, files):
         super(GoGamesFromDir, self).__init__()
-        self.files = glob.glob(pattern)
+        self.files = files
         self.len = len(self.files)
 
     def get_data(self):
-        file_idx = list(range(len(self.files)))
-
-        for file_id in file_idx:
-            raw = np.fromfile(self.files[file_id], dtype=np.int8)
+        for file in self.files:
+            raw = np.fromfile(file, dtype=np.int8)
             yield [raw]
 
     def reset_state(self):
@@ -39,16 +37,20 @@ class GoGamesFromDb(tp.dataflow.RNGDataFlow):
 
 class GameDecoder(MapData):
         """convert game into feature planes"""
-        def __init__(self, df):
+        def __init__(self, df, random=False):
             def func(dp):
                 raw = dp[0]
                 max_moves = len(raw) / 2
 
+                m = max_moves
+                if random:
+                    m = self.rng.randint(max_moves)
+
                 planes = np.zeros((14 * 19 * 19), dtype=np.int32)
-                goplanes.planes_from_bytes(raw.tobytes(), planes, min(50, max_moves - 1))
+                next_move = goplanes.planes_from_bytes(raw.tobytes(), planes, m)
                 planes = planes.reshape((14, 19, 19))
 
-                return [planes, max_moves]
+                return [planes, next_move, max_moves]
             super(GameDecoder, self).__init__(df, func)
 
 
@@ -57,7 +59,7 @@ if __name__ == '__main__':
     parser.add_argument('--lmdb', type=str, help='path to lmdb', default='/tmp/')
     parser.add_argument('--pattern', type=str, help='pattern of binary sgf files',
                         default='/tmp/out/*.sgfbin')
-    parser.add_argument('--action', type=str, help='action', choices=['create', 'debug'])
+    parser.add_argument('--action', type=str, help='action', choices=['create', 'debug', 'benchmark'])
     args = parser.parse_args()
 
     if args.action == 'create':
@@ -65,20 +67,29 @@ if __name__ == '__main__':
         assert args.pattern is not ''
 
         files = glob.glob(args.pattern)
+        print('found %i files' % len(files))
         file_idx = list(range(len(files)))
         np.random.shuffle(file_idx)
 
-        split = int(len(file_idx) * 0.8)
+        split = int(len(file_idx) * 0.9)
 
         train_idx = file_idx[:split]
         validate_idx = file_idx[split:]
 
+        print('use %i/%i split' % (len(train_idx), len(validate_idx)))
+
         # train data
-        df = GoGamesFromDir(files[train_idx])
+        df = GoGamesFromDir([files[i] for i in train_idx])
         dftools.dump_dataflow_to_lmdb(df, args.lmdb + 'go_train.lmdb')
 
-        df = GoGamesFromDir(files[validate_idx])
+        df = GoGamesFromDir([files[i] for i in validate_idx])
         dftools.dump_dataflow_to_lmdb(df, args.lmdb + 'go_val.lmdb')
+
+    if args.action == 'benchmark':
+        df = LMDBDataPoint(args.lmdb, shuffle=False)
+        df = GameDecoder(df)
+        df.reset_state()
+        TestDataSpeed(df, size=50000).start_test()
 
     if args.action == 'debug':
         df = LMDBDataPoint(args.lmdb, shuffle=False)
@@ -94,3 +105,4 @@ if __name__ == '__main__':
 
             for i in range(19):
                 print " ".join(bboard[i, :])
+            print "feature-shape", planes.shape
