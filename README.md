@@ -1,10 +1,10 @@
 # TF-GO (Policy-Network from AlphaGO)
 
-Yet another re-implementation of the polynetwork from Deepmind. But different to [go-NN](https://github.com/TheDuck314/go-NN). It used a C++ backend to compute the feature planes from the Natur-Paper and a custom fileformat for efficient storage.
+Yet another re-implementation of the policy-network from Deepmind's AlphaGo. But different to [go-NN](https://github.com/TheDuck314/go-NN). I use a C++ backend to compute the feature planes presented in the [Nature-paper](https://gogameguru.com/i/2016/03/deepmind-mastering-go.pdf) and a custom fileformat for efficient storage.
 
 # Fileformat
 
-In contrast to chess (8x8) we cannot store a board configuration into uin64 datatypes (one for each figure). As go requires to compute liberties all the time, we store the moves into a binary format. The best I came up with is 16bites (2bytes) for each move:
+In contrast to chess (8x8) we cannot store a board configuration into `uin64` datatypes (one for each figure). As GO requires to compute liberties all the time, we store the moves into a binary format. The best I came up with is 16bits (2bytes) for each move:
 
 ```
 ---pmcyyyyyxxxxx
@@ -48,3 +48,7 @@ So all training data is just (1.1GB) and validation is just 120MB. Generating so
 To see the actual board positions:
 
         python go_db.py --action debug --lmdb /tmp/go_train.lmdb
+
+# Training 
+
+        python tfgo.py --gpu 0  # or 0,1,... for multi-gpu
