@@ -48,9 +48,11 @@ class GameDecoder(MapData):
 
                 planes = np.zeros((14 * 19 * 19), dtype=np.int32)
                 next_move = goplanes.planes_from_bytes(raw.tobytes(), planes, m)
-                planes = planes.reshape((14, 19, 19))
+                planes = planes.reshape((14, 19, 19)).astype(np.int32)
 
-                return [planes, next_move, max_moves]
+                assert not np.isnan(planes).any()
+
+                return [planes, int(next_move)]
             super(GameDecoder, self).__init__(df, func)
 
 

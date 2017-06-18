@@ -20,15 +20,12 @@ CHANNELS = 14
 
 class Model(ModelDesc):
     def _get_inputs(self):
-        return [InputDesc(tf.int32, (None, CHANNELS, SHAPE, SHAPE), 'board'),
-                InputDesc(tf.int32, (None), 'next_move'),
-                InputDesc(tf.int32, (None), 'max_move')]
+        return [InputDesc(tf.int32, (BATCH_SIZE, CHANNELS, SHAPE, SHAPE), 'board'),
+                InputDesc(tf.int32, (BATCH_SIZE), 'next_move')]
 
     def _build_graph(self, inputs):
-        board, label, max_moves = inputs
+        board, label = inputs
         board = tf.cast(board, tf.float32)
-
-        print label.get_shape()
 
         k = 128  # match version was 192
 
@@ -36,7 +33,8 @@ class Model(ModelDesc):
 
         # pad to 23x23
         with argscope([Conv2D], nl=tf.nn.relu, kernel_shape=3, padding='VALID',
-                      stride=1, use_bias=False, data_format='NCHW'):
+                      stride=1, use_bias=False, data_format='NCHW',
+                      W_init=tf.truncated_normal_initializer(mean=0.0, stddev=1.0)):
             layers.append(tf.pad(board, [[0, 0], [0, 0], [2, 2], [2, 2]], mode='CONSTANT', name='pad1'))
             layers.append(Conv2D('conv1', layers[-1], k, kernel_shape=5))
 
@@ -52,18 +50,19 @@ class Model(ModelDesc):
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=label)
         loss = tf.reduce_mean(loss, name='xentropy-loss')
 
-        wrong = prediction_incorrect(logits, label, 1, name='wrong-top1')
-        add_moving_summary(tf.reduce_mean(wrong, name='train-error-top1'))
+        # wrong = prediction_incorrect(logits, label, 1, name='wrong-top1')
+        # add_moving_summary(tf.reduce_mean(wrong, name='train-error-top1'))
 
-        wrong = prediction_incorrect(logits, label, 5, name='wrong-top5')
-        add_moving_summary(tf.reduce_mean(wrong, name='train-error-top5'))
+        # wrong = prediction_incorrect(logits, label, 5, name='wrong-top5')
+        # add_moving_summary(tf.reduce_mean(wrong, name='train-error-top5'))
 
         self.cost = tf.identity(loss, name='total_costs')
+
         summary.add_moving_summary(self.cost)
 
     def _get_optimizer(self):
-        lr = symbolic_functions.get_scalar_var('learning_rate', 0.003, summary=True)
-        return tf.train.AdamOptimizer(lr)
+        lr = symbolic_functions.get_scalar_var('learning_rate', 0.00000000003, summary=True)
+        return tf.train.GradientDescentOptimizer(lr)
 
 
 def get_data(lmdb, suffle=False):
@@ -85,8 +84,13 @@ def get_config():
         dataflow=ds_train,
         callbacks=[
             ModelSaver(),
-
             InferenceRunner(ds_val, [ScalarStats('total_costs')]),
+        ],
+        extra_callbacks=[
+            MovingAverageSummary(),
+            ProgressBar(['tower0/total_costs:0']),
+            MergeAllSummaries(),
+            RunUpdateOps()
         ],
         steps_per_epoch=ds_train.size(),
         max_epoch=100,
