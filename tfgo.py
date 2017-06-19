@@ -133,7 +133,7 @@ def get_config(path, k):
 
     df_train = get_data(os.path.join(path, 'go_train.lmdb'), True)
     df_val = get_data(os.path.join(path, 'go_val.lmdb'), False)
-    df_val = FixedSizeData(df_val, 100)
+    # df_val = FixedSizeData(df_val, 100)
 
     return TrainConfig(
         model=Model(k),
@@ -153,7 +153,7 @@ def get_config(path, k):
             MergeAllSummaries(),
             RunUpdateOps()
         ],
-        steps_per_epoch=5,
+        steps_per_epoch=df_train.size(),
         max_epoch=100,
     )
 
