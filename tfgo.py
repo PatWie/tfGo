@@ -160,6 +160,7 @@ def get_config(path, k):
             RunUpdateOps()
         ],
         steps_per_epoch=df_train.size(),
+        # steps_per_epoch=5,
         max_epoch=100,
     )
 
