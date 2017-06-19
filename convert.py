@@ -119,13 +119,6 @@ def encode(color, x, y, move=False, pass_move=False):
     byte1 = value % (2**8)
     byte2 = (value - byte1) / (2**8)
 
-    # print '-->', format(value, '#018b')
-    # print '-->    ', format(byte1, '#010b'), byte1
-    # print '-->    ', format(byte2, '#010b'), byte2
-    # return bytearray([byte1, byte2])
-    # print value, byte1, byte2, "x", x, "y", y, 'is_white', (color == 'W')
-    # print'is_move', move, format(value, '#018b'), format(byte1, '#010b'), format(byte2, '#010b')
-    # return bytearray([np.uint8(byte1), np.uint8(byte2)])
     return [byte2, byte1]
 
 

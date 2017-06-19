@@ -13,7 +13,7 @@ from tensorpack.utils import get_rng
 
 
 class GoGamesFromDir(tp.dataflow.DataFlow):
-    """Yield frame triplets for phase 0
+    """Yield GO game moves buffer from directory (I expect this to be slow)
     """
     def __init__(self, files):
         super(GoGamesFromDir, self).__init__()
@@ -29,17 +29,14 @@ class GoGamesFromDir(tp.dataflow.DataFlow):
         pass
 
 
-class GoGamesFromDb(tp.dataflow.RNGDataFlow):
-    """docstring for GoGamesFromDb"""
-    def __init__(self, lmdb):
-        super(GoGamesFromDb, self).__init__()
-        self.lmdb = lmdb
-
-
 class GameDecoder(MapData):
-        """convert game into feature planes"""
         def __init__(self, df, random=True):
+            """Yield a board configuration and next move from a LMDB data point
 
+            Args:
+                df: dataflow of LMDB entries
+                random (bool, optional): pick random move in match
+            """
             self.rng = get_rng(self)
 
             def func(dp):
@@ -64,19 +61,24 @@ class GameDecoder(MapData):
 
 
 class DihedralGroup(imgaug.ImageAugmentor):
+    """see 'Symmetries' in the paper
+
+    They just apply a random actions of D4 = <a, b> where a^2=1, b^4=1 to all feature planes
+    """
     def __init__(self):
         super(DihedralGroup, self).__init__()
         self._init(locals())
 
     def _get_augment_params(self, img):
+        # get random grouop-element
         return self.rng.randint(8)
 
     def _augment(self, img, op):
-        # ddihedralgroup D4 = <a, b> where a^2=1, b^4=1
+        # mirror (a != e) ?
         if op >= 4:
             img = img[:, ::-1, :]
             op -= 4
-        # no mirror, just rot
+        # now rotate
         img = np.array([np.rot90(i, k=op) for i in img]).astype(np.int32)
         return img
 
