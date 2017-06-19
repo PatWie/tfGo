@@ -42,7 +42,7 @@ To simulate the board position from the encoded moves, we setup the SWIG-Python 
 
         cd go-engine && python setup.py install --user
 
-Reading some feature-planes (currently I only implemented 14 due to time reasons) from random moves from random games gives a speed of 13794.03 examples/s.
+Reading some feature-planes (currently I only implemented 47 of out 49) from random moves extracted from the db gives a speed of 13794.03 examples/s.
 
         python go_db.py --action benchmark --lmdb /tmp/go_train.lmdb
 
@@ -54,7 +54,7 @@ To see the actual board positions:
 
 To train the version with `128` filters just fire up. 
 
-        python tfgo.py --gpu 0,1 --k 128  # or -- gpu 0for single gpu
+        python tfgo.py --gpu 0,1 --k 128 --path /tmp # or --gpu 0 for single gpu
 
 This might take a some some some ... time. The output is 
 

@@ -5,7 +5,7 @@
 import argparse
 import os
 from tensorpack import *
-from go_db import GameDecoder, DihedralGroup
+import go_db
 from tensorpack.tfutils.symbolic_functions import *
 from tensorpack.tfutils.summary import *
 import tensorflow as tf
@@ -20,10 +20,25 @@ SHAPE = 19
 NUM_PLANES = 47
 
 
+@layer_register()
+def get_d4_symmetries(x):
+            with tf.name_scope('get_d4_symmetries'):
+                x = tf.transpose(x, [0, 2, 3, 1])
+                x1 = x
+                x2 = tf.map_fn(lambda y: tf.image.rot90(y, k=1), x)
+                x3 = tf.map_fn(lambda y: tf.image.rot90(y, k=2), x)
+                x4 = tf.map_fn(lambda y: tf.image.rot90(y, k=3), x)
+                x = tf.concat([x1, x2, x3, x4], axis=0)
+                xx = tf.map_fn(tf.image.flip_up_down, x)
+                x = tf.concat([x, xx], axis=0)
+                return tf.transpose(x, [0, 3, 1, 2])
+
+
 class Model(ModelDesc):
 
-    def __init__(self, k=128):
-        self.k = k  # match version was 192
+    def __init__(self, k=128, explicit_d4=True):
+        self.k = k                      # match version was 192
+        self.explicit_d4 = explicit_d4  # bake D4 group into the graph ?
 
     def _get_inputs(self):
         return [InputDesc(tf.int32, (None, NUM_PLANES, SHAPE, SHAPE), 'board'),
@@ -33,6 +48,10 @@ class Model(ModelDesc):
     def _build_graph(self, inputs):
         board, label, _ = inputs
         board = tf.cast(board, tf.float32)
+
+        if self.explicit_d4:
+            board = get_d4_symmetries('sym_board', board)
+            label = tf.concat([label, label, label, label, label, label, label, label], axis=0)
 
         def pad(x, p, name):
             return tf.pad(x, [[0, 0], [0, 0], [p, p], [p, p]], mode='CONSTANT', name=name)
@@ -70,10 +89,9 @@ class Model(ModelDesc):
 
         summary.add_moving_summary(acc_top1, acc_top5, self.cost)
 
-        # visualization in [-1, 1]
+        # visualization
         vis_pos = tf.expand_dims(board[:, 0, :, :] - board[:, 1, :, :], axis=-1)
         vis_pos = (vis_pos + 1) * 128
-        tf.summary.image('board', vis_pos, max_outputs=max(30, BATCH_SIZE))
 
         vis_logits = logits[:, 0, :, :]
         vis_logits -= tf.reduce_min(vis_logits)
@@ -81,6 +99,9 @@ class Model(ModelDesc):
         vis_logits = tf.reshape(vis_logits * 256, [-1, SHAPE, SHAPE, 1])
 
         vis_prob = prob[:, 0, :, :]
+        # just for visualization
+        vis_prob -= tf.reduce_min(vis_prob)
+        vis_prob /= tf.reduce_max(vis_prob)
         vis_prob = tf.reshape(vis_prob * 256, [-1, SHAPE, SHAPE, 1])
 
         viz_label = tf.reshape(tf.one_hot(label, SHAPE * SHAPE), [-1, SHAPE, SHAPE, 1]) * 256
@@ -97,21 +118,22 @@ class Model(ModelDesc):
 
 def get_data(lmdb, shuffle=False):
     df = LMDBDataPoint(lmdb, shuffle=True)
-    df = GameDecoder(df, random=True)
+    df = go_db.GameDecoder(df, random=True)
     df = PrefetchData(df, 5000, 1)
-    df = AugmentImageComponents(df, [DihedralGroup()], index=[0])
+    # df = AugmentImageComponents(df, [go_db.DihedralGroup()], index=[0])
     df = PrefetchDataZMQ(df, min(20, multiprocessing.cpu_count()))
     df = BatchData(df, BATCH_SIZE)
     return df
 
 
-def get_config(k):
+def get_config(path, k):
     logger.set_logger_dir(
         os.path.join('train_log',
                      'tfgo-policy_net-{}'.format(k)))
 
-    df_train = get_data('/scratch_shared/wieschol/go/go_train.lmdb', True)
-    df_val = get_data('/scratch_shared/wieschol/go/go_val.lmdb', False)
+    df_train = get_data(os.path.join(path, 'go_train.lmdb'), True)
+    df_val = get_data(os.path.join(path, 'go_val.lmdb'), False)
+    df_val = FixedSizeData(df_val, 100)
 
     return TrainConfig(
         model=Model(k),
@@ -131,7 +153,7 @@ def get_config(k):
             MergeAllSummaries(),
             RunUpdateOps()
         ],
-        steps_per_epoch=df_train.size(),
+        steps_per_epoch=5,
         max_epoch=100,
     )
 
@@ -140,12 +162,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.', required=True)
     parser.add_argument('--load', help='load model')
+    parser.add_argument('--path', help='path to lmdb')
     parser.add_argument('--k', type=int, help='number_of_filters', choices=xrange(1, 256))
     args = parser.parse_args()
 
     NR_GPU = len(args.gpu.split(','))
     with change_gpu(args.gpu):
-        config = get_config(args.k)
+        config = get_config(args.path, args.k)
         config.nr_tower = NR_GPU
 
         if args.load:
