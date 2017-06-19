@@ -36,22 +36,22 @@ def get_d4_symmetries(x):
 
 class Model(ModelDesc):
 
-    def __init__(self, k=128, explicit_d4=True):
+    def __init__(self, k=128, explicit_d4=False):
         self.k = k                      # match version was 192
         self.explicit_d4 = explicit_d4  # bake D4 group into the graph ?
 
     def _get_inputs(self):
-        return [InputDesc(tf.int32, (None, NUM_PLANES, SHAPE, SHAPE), 'board'),
-                InputDesc(tf.int32, (None, ), 'next_move'),
-                InputDesc(tf.int32, (None, ), 'max_move')]
+        return [InputDesc(tf.int32, (BATCH_SIZE, 8 * NUM_PLANES, SHAPE, SHAPE), 'board'),
+                InputDesc(tf.int32, (BATCH_SIZE, 8, SHAPE, SHAPE), 'full_next_move'),
+                InputDesc(tf.int32, (BATCH_SIZE, 8), 'next_move')]
 
     def _build_graph(self, inputs):
-        board, label, _ = inputs
+        board, fulllabel, label = inputs
         board = tf.cast(board, tf.float32)
 
-        if self.explicit_d4:
-            board = get_d4_symmetries('sym_board', board)
-            label = tf.concat([label, label, label, label, label, label, label, label], axis=0)
+        board = tf.reshape(board, [BATCH_SIZE * 8, NUM_PLANES, SHAPE, SHAPE])
+        fulllabel = tf.reshape(fulllabel, [BATCH_SIZE * 8, SHAPE, SHAPE])
+        label = tf.reshape(label, [BATCH_SIZE * 8])
 
         def pad(x, p, name):
             return tf.pad(x, [[0, 0], [0, 0], [p, p], [p, p]], mode='CONSTANT', name=name)
@@ -79,9 +79,12 @@ class Model(ModelDesc):
             logits = Conv2D('conv_final', net, 1, kernel_shape=1, use_bias=True, nl=tf.identity)
 
         prob = tf.nn.softmax(logits, name='probabilities')
-        logits_flat = tf.identity(batch_flatten(logits), name='logits')
+        logits_flat = tf.identity(batch_flatten(logits), name='logits_flat')
+        labels_flat = tf.identity(batch_flatten(fulllabel), name='labels_flat')
 
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits_flat, labels=label)
+        print "logits_flat", logits_flat.get_shape()
+        print "labels_flat", labels_flat.get_shape()
+        loss = tf.nn.softmax_cross_entropy_with_logits(logits=logits_flat, labels=labels_flat)
         self.cost = tf.reduce_mean(loss, name='total_costs')
 
         acc_top1 = accuracy(logits_flat, label, 1, name='accuracy-top1')
@@ -104,7 +107,8 @@ class Model(ModelDesc):
         vis_prob /= tf.reduce_max(vis_prob)
         vis_prob = tf.reshape(vis_prob * 256, [-1, SHAPE, SHAPE, 1])
 
-        viz_label = tf.reshape(tf.one_hot(label, SHAPE * SHAPE), [-1, SHAPE, SHAPE, 1]) * 256
+        viz_label = tf.cast(fulllabel, tf.float32) * 256
+        viz_label = tf.reshape(viz_label, [-1, 19, 19, 1])
 
         viz = tf.concat([vis_pos, vis_logits, vis_prob, viz_label], axis=2)
         viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='viz')
@@ -120,7 +124,9 @@ def get_data(lmdb, shuffle=False):
     df = LMDBDataPoint(lmdb, shuffle=True)
     df = go_db.GameDecoder(df, random=True)
     df = PrefetchData(df, 5000, 1)
-    # df = AugmentImageComponents(df, [go_db.DihedralGroup()], index=[0])
+    df = go_db.LabelDecoder(df)
+    # df = PrintData(df)
+    df = AugmentImageComponents(df, [go_db.DihedralGroup()], index=[0, 1])
     df = PrefetchDataZMQ(df, min(20, multiprocessing.cpu_count()))
     df = BatchData(df, BATCH_SIZE)
     return df

@@ -13,6 +13,7 @@ from tensorpack.utils import get_rng
 
 FEATURE_LEN = 47
 
+
 class GoGamesFromDir(tp.dataflow.DataFlow):
     """Yield GO game moves buffer from directory (I expect this to be slow)
     """
@@ -28,6 +29,18 @@ class GoGamesFromDir(tp.dataflow.DataFlow):
 
     def reset_state(self):
         pass
+
+
+class LabelDecoder(MapData):
+        def __init__(self, df):
+
+            def func(dp):
+                l = np.zeros(19 * 19, dtype=np.uint32)
+                l[dp[1]] = 1
+                l = np.reshape(l, [1, 19, 19])
+
+                return [dp[0], l, np.tile(dp[1], 8)]
+            super(LabelDecoder, self).__init__(df, func)
 
 
 class GameDecoder(MapData):
@@ -57,7 +70,7 @@ class GameDecoder(MapData):
 
                 assert not np.isnan(planes).any()
 
-                return [planes, int(next_move), int(max_moves)]
+                return [planes, int(next_move)]
             super(GameDecoder, self).__init__(df, func)
 
 
@@ -78,12 +91,18 @@ class DihedralGroup(imgaug.ImageAugmentor):
 
     def _augment(self, img, op):
         # mirror (a != e) ?
-        if op >= 4:
-            img = img[:, ::-1, :]
-            op -= 4
-        # now rotate
-        img = np.array([np.rot90(i, k=op) for i in img]).astype(np.int32)
-        return img
+        versions = []
+        versions.append(img)
+        mirror = img[:, ::-1, :]
+        versions.append(mirror)
+        for op in range(1, 4):
+            versions.append(np.array([np.rot90(i, k=op) for i in img]).astype(np.int32))
+            versions.append(np.array([np.rot90(i, k=op) for i in mirror]).astype(np.int32))
+
+        x = np.concatenate(versions, axis=0)
+
+        # print x.shape, versions[0].shape
+        return x
 
 
 if __name__ == '__main__':
