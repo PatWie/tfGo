@@ -35,11 +35,24 @@ class LabelDecoder(MapData):
         def __init__(self, df):
 
             def func(dp):
-                l = np.zeros(19 * 19, dtype=np.uint32)
-                l[dp[1]] = 1
-                l = np.reshape(l, [1, 19, 19])
+                # l = np.zeros(19 * 19, dtype=np.uint32)
+                # l[dp[1]] = 1
+                # l = np.reshape(l, [1, 19, 19])
 
-                return [dp[0], l, np.tile(dp[1], 8)]
+                y = dp[1] % 19
+                x = (dp[1] - y) // 19
+                l2 = np.zeros([1, 19, 19], dtype=np.uint32)
+                l2[0, x, y] = 1
+
+                # assert np.all(l == l2)
+
+                # print l
+                # print l2
+                # print ""
+                # print ""
+                # print ""
+
+                return [dp[0], l2, np.tile(dp[1], 8)]
             super(LabelDecoder, self).__init__(df, func)
 
 
