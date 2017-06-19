@@ -17,7 +17,7 @@ Re-Implementation of the Policy-Network from AlphaGo
 
 BATCH_SIZE = 16
 SHAPE = 19
-NUM_PLANES = 14
+NUM_PLANES = 47
 
 
 class Model(ModelDesc):
@@ -42,7 +42,7 @@ class Model(ModelDesc):
         net = board
         with argscope([Conv2D], nl=tf.nn.relu, kernel_shape=3, padding='VALID',
                       stride=1, use_bias=False, data_format='NCHW'):
-            net = pad(board, p=2, name='pad1')
+            net = pad(net, p=2, name='pad1')
             net = Conv2D('conv1', net, out_channel=self.k, kernel_shape=5)
 
             net = Conv2D('conv2', pad(net, p=1, name='pad2'), out_channel=self.k)
@@ -59,28 +59,36 @@ class Model(ModelDesc):
 
             logits = Conv2D('conv_final', net, 1, kernel_shape=1, use_bias=True, nl=tf.identity)
 
-        prop = tf.nn.softmax(logits, name='probabilities')
-        logits = tf.identity(batch_flatten(logits), name='logits')
+        prob = tf.nn.softmax(logits, name='probabilities')
+        logits_flat = tf.identity(batch_flatten(logits), name='logits')
 
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=label)
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits_flat, labels=label)
         self.cost = tf.reduce_mean(loss, name='total_costs')
 
-        acc_top1 = accuracy(logits, label, 1, name='accuracy-top1')
-        acc_top5 = accuracy(logits, label, 5, name='accuracy-top5')
+        acc_top1 = accuracy(logits_flat, label, 1, name='accuracy-top1')
+        acc_top5 = accuracy(logits_flat, label, 5, name='accuracy-top5')
 
         summary.add_moving_summary(acc_top1, acc_top5, self.cost)
 
-        # visualization
-        v = tf.expand_dims(board[:, 0, :, :] - board[:, 1, :, :], axis=-1)
-        tf.summary.image('board', v, max_outputs=max(30, BATCH_SIZE))
+        # visualization in [-1, 1]
+        vis_pos = tf.expand_dims(board[:, 0, :, :] - board[:, 1, :, :], axis=-1)
+        vis_pos = (vis_pos + 1) * 128
+        tf.summary.image('board', vis_pos, max_outputs=max(30, BATCH_SIZE))
 
-        prop = prop[:, 0, :, :]
-        prop = tf.reshape(prop, [-1, SHAPE, SHAPE, 1]) * 255.
-        expected = tf.one_hot(label, SHAPE * SHAPE)
-        expected = tf.reshape(expected, [-1, SHAPE, SHAPE, 1]) * 255.
-        viz = tf.concat([prop, expected], axis=2) * 256
+        vis_logits = logits[:, 0, :, :]
+        vis_logits -= tf.reduce_min(vis_logits)
+        vis_logits /= tf.reduce_max(vis_logits)
+        vis_logits = tf.reshape(vis_logits * 256, [-1, SHAPE, SHAPE, 1])
+
+        vis_prob = prob[:, 0, :, :]
+        vis_prob = tf.reshape(vis_prob * 256, [-1, SHAPE, SHAPE, 1])
+
+        viz_label = tf.reshape(tf.one_hot(label, SHAPE * SHAPE), [-1, SHAPE, SHAPE, 1]) * 256
+
+        viz = tf.concat([vis_pos, vis_logits, vis_prob, viz_label], axis=2)
         viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='viz')
-        tf.summary.image('probabilities, expected', viz, max_outputs=max(30, BATCH_SIZE))
+
+        tf.summary.image('pos, logits, prob, label', viz, max_outputs=max(30, BATCH_SIZE))
 
     def _get_optimizer(self):
         lr = symbolic_functions.get_scalar_var('learning_rate', 0.003, summary=True)
@@ -131,7 +139,7 @@ def get_config(k):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.', required=True)
-    parser.add_argument('--load', help='load model', default='train_log/tfgo-policy_net-128/checkpoint')
+    parser.add_argument('--load', help='load model')
     parser.add_argument('--k', type=int, help='number_of_filters', choices=xrange(1, 256))
     args = parser.parse_args()
 

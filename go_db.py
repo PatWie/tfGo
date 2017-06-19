@@ -11,6 +11,7 @@ import argparse
 from go_engine import goplanes
 from tensorpack.utils import get_rng
 
+FEATURE_LEN = 47
 
 class GoGamesFromDir(tp.dataflow.DataFlow):
     """Yield GO game moves buffer from directory (I expect this to be slow)
@@ -50,9 +51,9 @@ class GameDecoder(MapData):
                 if random:
                     m = self.rng.randint(max_moves - 5)
 
-                planes = np.zeros((14 * 19 * 19), dtype=np.int32)
+                planes = np.zeros((FEATURE_LEN * 19 * 19), dtype=np.int32)
                 next_move = goplanes.planes_from_bytes(raw.tobytes(), planes, m)
-                planes = planes.reshape((14, 19, 19)).astype(np.int32)
+                planes = planes.reshape((FEATURE_LEN, 19, 19)).astype(np.int32)
 
                 assert not np.isnan(planes).any()
 
@@ -64,6 +65,8 @@ class DihedralGroup(imgaug.ImageAugmentor):
     """see 'Symmetries' in the paper
 
     They just apply a random actions of D4 = <a, b> where a^2=1, b^4=1 to all feature planes
+
+    TODO: return all results from the group actions (put this into the graph?)
     """
     def __init__(self):
         super(DihedralGroup, self).__init__()

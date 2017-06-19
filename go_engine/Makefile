@@ -2,8 +2,8 @@ all: build
 
 build: clean main
 
-main: main.cc
-	clang++ -std=c++11 main.cc -o main
+main: goplanes.cpp
+	clang++ -std=c++11 goplanes.cpp -o main
 
 clean:
 	rm -f *.o *.so *.pyc *.npy

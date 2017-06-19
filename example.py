@@ -20,10 +20,10 @@ assert os.path.isfile(path)
 # Version from file
 # --------------------------------------------------------
 max_moves = os.path.getsize(path) / 2
-planes = np.zeros((14 * 19 * 19), dtype=np.int32)
+planes = np.zeros((47 * 19 * 19), dtype=np.int32)
 steps = min(int(args.steps), max_moves - 1)
 next_move = goplanes.planes_from_file(path, planes, steps)
-planes = planes.reshape((14, 19, 19))
+planes = planes.reshape((47, 19, 19))
 
 board = np.zeros((19, 19), dtype=str)
 board[planes[0, :, :] == 1] = 'o'
@@ -40,10 +40,10 @@ print "next", next_move
 raw = np.fromfile(path, dtype=np.int8)
 max_moves = len(raw) / 2
 
-planes = np.zeros((14 * 19 * 19), dtype=np.int32)
+planes = np.zeros((47 * 19 * 19), dtype=np.int32)
 steps = min(int(args.steps), max_moves - 1)
 next_move = goplanes.planes_from_bytes(raw.tobytes(), planes, steps)
-planes = planes.reshape((14, 19, 19))
+planes = planes.reshape((47, 19, 19))
 
 bboard = np.zeros((19, 19), dtype=str)
 bboard[planes[0, :, :] == 1] = 'o'

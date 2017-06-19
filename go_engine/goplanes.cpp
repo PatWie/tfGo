@@ -14,6 +14,7 @@ TODO:
 #include <bitset>
 #include <fstream>
 #include <string>
+#include <set>
 #include <iomanip>
 
 #define map2line(x,y) (((x) * 19 + (y)))
@@ -30,7 +31,7 @@ class board_t;
 class field_t {
   public:
 
-    field_t() : token_(empty), group(nullptr), x_(-1), y_(-1) {}
+    field_t() : token_(empty), group(nullptr), x_(-1), y_(-1), played_at(0) {}
 
     const token_t token() const {
         return token_;
@@ -59,6 +60,7 @@ class field_t {
     }
 
     group_t *group;
+    int played_at;
 
   private:
     int x_;
@@ -90,6 +92,7 @@ class group_t {
         int score = stones.size();
         for (field_t * s : stones) {
             s->token(empty);
+            s->played_at = 0;
             s->group = nullptr;
         }
         delete this;
@@ -111,7 +114,7 @@ class group_t {
 
     // count liberties (see below)
     // TODO: cache result (key should be iteration in game)
-    int liberties(board_t *b);
+    int liberties(board_t *b)  const;
 
     // collection of pointers to stones
     std::vector<field_t *> stones;
@@ -124,7 +127,7 @@ class board_t {
     int groupid;
 
 
-    board_t() : turn(white), score_black(0.f), score_white(0.f) {
+    board_t() : turn(white), score_black(0.f), score_white(0.f), played_moves(0) {
         // tell each field its coordinate
         for (int h = 0; h < N; ++h)
             for (int w = 0; w < N; ++w)
@@ -209,12 +212,13 @@ class board_t {
 
         // place token to field
         fields[x][y].token(tok);
+        fields[x][y].played_at = played_moves++;
 
         // update group structures
         update_groups(x, y);
 
         // does this move captures some stones?
-        int taken = find_captured_stones(x, y);
+        int taken = find_captured_stones_and_execute(x, y);
 
         // TODO: check suicidal move, i.e. a move which kills its own group
         // TODO: check ko, i.e. the same position should not appear on the board again (hashing?)
@@ -289,7 +293,139 @@ class board_t {
         return (turn == white) ? black : white;
     }
 
-    int find_captured_stones(int x, int y) {
+    bool check_move_legal(int x, int y, token_t tok){
+        // position has already a stone ?
+        if(fields[x][y].token() != empty)
+            return false;
+
+        // is number of liberties after move == 1 ?
+        if(estimate_captured_stones(x, y, tok, tok) > 0)
+            return false;
+
+        fields[x][y].token(tok);
+
+        // placing that stone would cause group to only have liberty afterwards
+
+        bool valid = true;
+        // TODO: implement "ko rule"
+        if(valid)
+            if (valid_pos(x - 1)) {
+                field_t& other_stone = fields[x - 1][y];
+                if (other_stone.token() == tok){
+                    fields[x][y].group = other_stone.group;
+                    other_stone.group->stones.push_back(&fields[x][y]);
+                    if (other_stone.group->liberties(this) == 1)
+                        valid = false;
+                    other_stone.group->stones.pop_back();
+                    fields[x][y].group = nullptr;
+                }
+            }
+
+        if(valid)
+            if (valid_pos(x + 1)) {
+                field_t& other_stone = fields[x + 1][y];
+                if (other_stone.token() == tok){
+                    fields[x][y].group = other_stone.group;
+                    other_stone.group->stones.push_back(&fields[x][y]);
+                    if (other_stone.group->liberties(this) == 1)
+                        valid = false;
+                    other_stone.group->stones.pop_back();
+                    fields[x][y].group = nullptr;
+                }
+            }
+        if(valid)
+            if (valid_pos(y - 1)) {
+                field_t& other_stone = fields[x][y - 1];
+                if (other_stone.token() == tok){
+                    fields[x][y].group = other_stone.group;
+                    other_stone.group->stones.push_back(&fields[x][y]);
+                    if (other_stone.group->liberties(this) == 1)
+                        valid = false;
+                    other_stone.group->stones.pop_back();
+                    fields[x][y].group = nullptr;
+                }
+            }
+        if(valid)
+            if (valid_pos(y + 1)) {
+                field_t& other_stone = fields[x][y + 1];
+                if (other_stone.token() == tok){
+                    fields[x][y].group = other_stone.group;
+                    other_stone.group->stones.push_back(&fields[x][y]);
+                    if (other_stone.group->liberties(this) == 1)
+                        valid = false;
+                    other_stone.group->stones.pop_back();
+                    fields[x][y].group = nullptr;
+                }
+            }
+
+
+        fields[x][y].token(empty);
+
+        return true;
+        
+    }
+
+    int estimate_captured_stones(int x, int y, token_t color_place, token_t color_count) {
+        int scores = 0;
+
+        if(fields[x][y].token() != empty){
+            return 0;
+        }
+
+        std::set<int> considered_groups;
+        std::set<int>::iterator considered_groups_it;
+
+        fields[x][y].token(color_place);
+
+
+        if (valid_pos(x - 1)) {
+            field_t& other_stone = fields[x - 1][y];
+            if (other_stone.token() == color_count){
+                if(considered_groups.find(other_stone.group->id) == considered_groups.end()){
+                    if (other_stone.group->liberties(this) == 0){
+                        scores += other_stone.group->stones.size();
+                        considered_groups.insert(other_stone.group->id);
+                    }
+                }
+            }
+        }
+
+        if (valid_pos(x + 1)) {
+            field_t& other_stone = fields[x + 1][y];
+            if (other_stone.token() == color_count)
+                if(considered_groups.find(other_stone.group->id) == considered_groups.end())
+                    if (other_stone.group->liberties(this) == 0){
+                        scores += other_stone.group->stones.size();
+                        considered_groups.insert(other_stone.group->id);
+                    }
+        }
+
+        if (valid_pos(y - 1)) {
+            field_t& other_stone = fields[x][y - 1];
+            if (other_stone.token() == color_count)
+                if(considered_groups.find(other_stone.group->id) == considered_groups.end())
+                    if (other_stone.group->liberties(this) == 0){
+                        scores += other_stone.group->stones.size();
+                        considered_groups.insert(other_stone.group->id);
+                    }
+        }
+
+        if (valid_pos(y + 1)) {
+            field_t& other_stone = fields[x][y + 1];
+            if (other_stone.token() == color_count)
+                if(considered_groups.find(other_stone.group->id) == considered_groups.end())
+                    if (other_stone.group->liberties(this) == 0){
+                        scores += other_stone.group->stones.size();
+                        considered_groups.insert(other_stone.group->id);
+                    }
+        }
+
+        fields[x][y].token(empty);
+
+        return scores;
+    }
+
+    int find_captured_stones_and_execute(int x, int y) {
         int scores = 0;
 
         // does any opponent neighbor-group has no liberties?
@@ -319,13 +455,18 @@ class board_t {
         }
         return scores;
     }
-
     void feature_planes(int *planes) {
+        feature_planes(planes, turn);
+    }
+    void feature_planes(int *planes, token_t self) {
         // see https://gogameguru.com/i/2016/03/deepmind-mastering-go.pdf (Table 2)
         const int NN = 19 * 19;
 
+        const token_t opponent_color = (self == white) ? black : white;
+
         for (int h = 0; h < N; ++h) {
             for (int w = 0; w < N; ++w) {
+
                 // Stone colour : 3 : Player stone / opponent stone / empty
                 if (fields[h][w].token() == turn)
                     planes[0 * NN + map2line(h, w)] = 1;
@@ -337,40 +478,142 @@ class board_t {
                 // Ones : 1 : A constant plane filled with 1
                 planes[3 * NN + map2line(h, w)] = 1;
 
+                  
+                // Turns since :8: How many turns since a move was played
+                if (fields[h][w].token() != empty) {
+
+                    const int since = played_moves - fields[h][w].played_at + 1;
+
+                    if (since == 1)
+                        planes[4 * NN + map2line(h, w)] = 1;
+                    else if (since == 2)
+                        planes[5 * NN + map2line(h, w)] = 1;
+                    else if (since == 3)
+                        planes[6 * NN + map2line(h, w)] = 1;
+                    else if (since == 4)
+                        planes[7 * NN + map2line(h, w)] = 1;
+                    else if (since == 5)
+                        planes[8 * NN + map2line(h, w)] = 1;
+                    else if (since == 6)
+                        planes[9 * NN + map2line(h, w)] = 1;
+                    else if (since == 7)
+                        planes[10 * NN + map2line(h, w)] = 1;
+                    else if (since > 7)
+                        planes[11 * NN + map2line(h, w)] = 1;
+                }
+
+                
+
                 // Liberties :8: Number of liberties (empty adjacent points)
                 if (fields[h][w].token() != empty) {
 
                     const int num_liberties = fields[h][w].group->liberties(this);
 
                     if (num_liberties == 1)
-                        planes[4 * NN + map2line(h, w)] = 1;
+                        planes[12 * NN + map2line(h, w)] = 1;
                     else if (num_liberties == 2)
-                        planes[5 * NN + map2line(h, w)] = 1;
+                        planes[13 * NN + map2line(h, w)] = 1;
                     else if (num_liberties == 3)
-                        planes[6 * NN + map2line(h, w)] = 1;
+                        planes[14 * NN + map2line(h, w)] = 1;
                     else if (num_liberties == 4)
-                        planes[7 * NN + map2line(h, w)] = 1;
+                        planes[15 * NN + map2line(h, w)] = 1;
                     else if (num_liberties == 5)
-                        planes[8 * NN + map2line(h, w)] = 1;
+                        planes[16 * NN + map2line(h, w)] = 1;
                     else if (num_liberties == 6)
-                        planes[9 * NN + map2line(h, w)] = 1;
+                        planes[17 * NN + map2line(h, w)] = 1;
                     else if (num_liberties == 7)
-                        planes[10 * NN + map2line(h, w)] = 1;
-                    else
-                        planes[11 * NN + map2line(h, w)] = 1;
+                        planes[18 * NN + map2line(h, w)] = 1;
+                    else if (num_liberties > 7)
+                        planes[19 * NN + map2line(h, w)] = 1;
                 }
 
-                // TODO next planes (isn't this the ideal case for ConvLSTM?)
-                // this requires something like undo and history or deep-copy
-                // ...
+                // Liberties :8: Number of liberties (empty adjacent points)
+                if (fields[h][w].token() != empty) {
+
+                    const int num_liberties = fields[h][w].group->liberties(this);
+
+                    if (num_liberties == 1)
+                        planes[20 * NN + map2line(h, w)] = 1;
+                    else if (num_liberties == 2)
+                        planes[21 * NN + map2line(h, w)] = 1;
+                    else if (num_liberties == 3)
+                        planes[22 * NN + map2line(h, w)] = 1;
+                    else if (num_liberties == 4)
+                        planes[23 * NN + map2line(h, w)] = 1;
+                    else if (num_liberties == 5)
+                        planes[24 * NN + map2line(h, w)] = 1;
+                    else if (num_liberties == 6)
+                        planes[25 * NN + map2line(h, w)] = 1;
+                    else if (num_liberties == 7)
+                        planes[26 * NN + map2line(h, w)] = 1;
+                    else if (num_liberties > 7)
+                        planes[27 * NN + map2line(h, w)] = 1;
+                }
+
+                // Capture size : 8 : How many opponent stones would be captured
+                if (fields[h][w].token() == empty) {
+
+                    const int num_capture = estimate_captured_stones(h, w, self, opponent_color);
+
+                    if (num_capture == 1)
+                        planes[28 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 2)
+                        planes[29 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 3)
+                        planes[30 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 4)
+                        planes[31 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 5)
+                        planes[32 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 6)
+                        planes[33 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 7)
+                        planes[34 * NN + map2line(h, w)] = 1;
+                    else if (num_capture > 7)
+                        planes[35 * NN + map2line(h, w)] = 1;
+                }
+
+                // // Self-atari size : 8 : How many of own stones would be captured
+                if (fields[h][w].token() == empty) {
+
+                    const int num_capture = estimate_captured_stones(h, w, self, self);
+
+                    if (num_capture == 1)
+                        planes[36 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 2)
+                        planes[37 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 3)
+                        planes[38 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 4)
+                        planes[39 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 5)
+                        planes[40 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 6)
+                        planes[41 * NN + map2line(h, w)] = 1;
+                    else if (num_capture == 7)
+                        planes[42 * NN + map2line(h, w)] = 1;
+                    else if (num_capture > 7)
+                        planes[43 * NN + map2line(h, w)] = 1;
+                }
+
+                // TODO Ladder c'mon (not here)
+                // Ladder capture : 1 : Whether a move at this point is a successful ladder capture
+                // Ladder escape : 1 : Whether a move at this point is a successful ladder escape
+                // these two features are probably the most important ones, as they allow to look into the future
+                // ... but they are missing here ;-)
+
+                // Sensibleness : 1 : Whether a move is legal and does not fill its own eyes
+                if(!check_move_legal(h, w, self)){
+                    planes[44 * NN + map2line(h, w)] = 1;
+                }
 
                 // Zeros : 1 : A constant plane filled with 0
-                planes[12 * NN + map2line(h, w)] = 0;
+                planes[45 * NN + map2line(h, w)] = 0;
 
                 // Player color :1: Whether current player is black
                 // TODO_ can't we just normalize the input, such that black is always the current player ?
                 const int value = (turn == black) ? 1 : 0;
-                planes[13 * NN + map2line(h, w)] = value;
+                planes[46 * NN + map2line(h, w)] = value;
 
             }
         }
@@ -379,13 +622,15 @@ class board_t {
     std::array<std::array<field_t, N>, N> fields;
     token_t turn;
 
+    int played_moves = 0;
+
     float score_black;
     float score_white;
 
 };
 
 // to avoid circular dependency
-int group_t::liberties(board_t *b) {
+int group_t::liberties(board_t *b) const{
     // TODO: this really needs a caching!!!
     // local memory
     std::bitset<19 * 19> already_processed(0);
@@ -555,7 +800,7 @@ class SGFbin {
 /**
  * @brief Just an example how to load the data
  */
-int main(int argc, char const *argv[]) {
+int main2(int argc, char const *argv[]) {
     std::string path = "../preprocessing/game.sgf.bin";
     SGFbin Game(path);
 
@@ -595,7 +840,7 @@ int main(int argc, char const *argv[]) {
 /**
  * @brief Just an example to test the capturing of stones
  */
-int main2(int argc, char const *argv[]) {
+int main(int argc, char const *argv[]) {
     // test group capturing
 
     board_t b;
@@ -610,7 +855,33 @@ int main2(int argc, char const *argv[]) {
 
     b.print();
     b.turn = black;
+    
+
+    std::cout << std::endl << "-----------------" << std::endl << std::endl;
+    for (int h = 0; h < N; ++h) {
+        for (int w = 0; w < N; ++w) {
+            std::cout << b.estimate_captured_stones(h, w, black, white) << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    std::cout << std::endl << "-----------------" << std::endl << std::endl;
+    for (int h = 0; h < N; ++h) {
+        for (int w = 0; w < N; ++w) {
+            if(b.check_move_legal(h, w, black))
+                std::cout << ". ";
+            else
+                std::cout << "x ";
+        }
+        std::cout << std::endl;
+    }
+
+    std::cout << std::endl  << std::endl;
+    b.print();
+    std::cout << std::endl << "-----------------" << std::endl << std::endl;
+      
     b.play(2, 2, black);
+    b.print();
 
     return 0;
 }
@@ -647,6 +918,7 @@ int planes_from_file(char *str, int strlen, int* data, int len, int moves) {
         // << "\tis_move " << is_move
         // << "\tis_pass " << is_pass
         // << std::endl;
+        b.turn = turn;
 
 
         if (!is_pass) {
@@ -701,6 +973,7 @@ int planes_from_bytes(char *bytes, int byteslen, int* data, int len, int moves) 
         Game.move(i, &x, &y, &is_white, &is_move, &is_pass);
 
         token_t turn = is_white ? white : black;
+        b.turn = turn;
 
         if (!is_pass) {
             if (is_move) {
