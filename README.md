@@ -1,6 +1,6 @@
-# Policy-Network from AlphaGO in TensorFlow
+# Policy-Network (SL) from AlphaGO in TensorFlow
 
-Yet another re-implementation of the policy-network from Deepmind's AlphaGo. This uses a C++ backend to compute the feature planes presented in the [Nature-Paper](https://gogameguru.com/i/2016/03/deepmind-mastering-go.pdf) and a custom fileformat for efficient storage. To train the network it uses the dataflow and multi-GPU setup of[TensorPack](https://github.com/ppwwyyxx/tensorpack).
+Yet another re-implementation of the policy-network (supervised) from Deepmind's AlphaGo. This uses a C++ backend to compute the feature planes presented in the [Nature-Paper](https://gogameguru.com/i/2016/03/deepmind-mastering-go.pdf) and a custom fileformat for efficient storage. To train the network it uses the dataflow and multi-GPU setup of [TensorPack](https://github.com/ppwwyyxx/tensorpack).
 
 # Fileformat
 
@@ -17,11 +17,9 @@ x: encoded column (a-s)
 -: free bits (maybe we can store something useful here)
 ```
 
-This gives serveral nice properties:
-- reading moves in C++ is absolute easy
-- computing the length of the game is simply `sizeof(file) / 2`
-
-TODO: (store result as quantized(?) float for Value-Network ?)
+This gives two nice properties:
+- Reading a match and its moves in C++ is absolute easy.
+- Computing the length of the game is simply `sizeof(file) / 2` (we just ignore the handicap currently)
 
 # Data + Features
 
@@ -58,8 +56,8 @@ To train the version with `128` filters just fire up.
 
 This might take a some some some ... time. The output is 
 
-         64%|#######4               |60951/94579[11:08<06:11,90.46it/s], total_costs=4.5, accuracy-top1=0.125, accuracy-top5=0.312
+         64%|#######4               |60951/94579[11:08<06:11,20.46it/s], total_costs=4.5, accuracy-top1=0.125, accuracy-top5=0.312
 
-during training. So it is able to learn from roughly 1447 board positions per second. As there is no large different on a small number of GPUS, this uses the Sync-Training rather than any Async-Training.
+during training. As I saw no big different on a small number of GPUS, this uses the Sync-Training rather than any Async-Training.
 
-It will also creat checkpoints for the best performing models from the validation phase.
+It will also create checkpoints for the best performing models from the validation phase.

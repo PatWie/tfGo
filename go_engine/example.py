@@ -3,7 +3,7 @@
 # Author: Patrick Wieschollek <mail@patwie.com>
 
 
-from go_engine import goplanes
+import goplanes
 import numpy as np
 import argparse
 import os

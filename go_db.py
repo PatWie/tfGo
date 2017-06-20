@@ -11,11 +11,12 @@ import argparse
 from go_engine import goplanes
 from tensorpack.utils import get_rng
 
+# the ladder heuristic is missing (2 planes), hence 47 instead of 49
 FEATURE_LEN = 47
 
 
 class GoGamesFromDir(tp.dataflow.DataFlow):
-    """Yield GO game moves buffer from directory (I expect this to be slow)
+    """Yield GO game moves buffer from directory (I expect this to be slow.)
     """
     def __init__(self, files):
         super(GoGamesFromDir, self).__init__()
@@ -31,97 +32,94 @@ class GoGamesFromDir(tp.dataflow.DataFlow):
         pass
 
 
-class LabelDecoder(MapData):
-        def __init__(self, df):
-
-            def func(dp):
-                # decode move
-                y = dp[1] % 19
-                x = (dp[1] - y) // 19
-
-                # compute full board representation of next move
-                next_move_2d = np.zeros([1, 19, 19], dtype=np.uint32)
-                next_move_2d[0, x, y] = 1
-
-                # compute sparse representation of next move
-                def rot90(x, y, s, k=0):
-                    for _ in range(k):
-                        x, y = y, x          # transpose
-                        x, y = s - 1 - x, y  # reverse
-                    return x, y
-
-                rot_labels = []
-                for k in range(4):
-                    xx, yy = rot90(x, y, 19, k)
-                    rot_labels.append(19 * xx + yy)
-
-                    xx, yy = rot90(19 - x - 1, y, 19, k)
-                    rot_labels.append(19 * xx + yy)
-
-                return [dp[0], next_move_2d, np.array(rot_labels, dtype=np.int32)]
-            super(LabelDecoder, self).__init__(df, func)
-
-
 class GameDecoder(MapData):
-        def __init__(self, df, random=True):
-            """Yield a board configuration and next move from a LMDB data point
-
-            Args:
-                df: dataflow of LMDB entries
-                random (bool, optional): pick random move in match
-            """
-            self.rng = get_rng(self)
-
-            def func(dp):
-                raw = dp[0]
-                max_moves = len(raw) / 2
-
-                if max_moves < 10:
-                    return None
-
-                m = max_moves - 5
-                if random:
-                    m = self.rng.randint(max_moves - 5)
-
-                planes = np.zeros((FEATURE_LEN * 19 * 19), dtype=np.int32)
-                next_move = goplanes.planes_from_bytes(raw.tobytes(), planes, m)
-                planes = planes.reshape((FEATURE_LEN, 19, 19)).astype(np.int32)
-
-                assert not np.isnan(planes).any()
-
-                return [planes, int(next_move)]
-            super(GameDecoder, self).__init__(df, func)
-
-
-class DihedralGroup(imgaug.ImageAugmentor):
-    """see 'Symmetries' in the paper
-
-    They just apply a random actions of D4 = <a, b> where a^2=1, b^4=1 to all feature planes
-
-    TODO: return all results from the group actions (put this into the graph?)
+    """Decode SGFbin and play game until a position.
     """
-    def __init__(self):
-        super(DihedralGroup, self).__init__()
-        self._init(locals())
+    def __init__(self, df, random=True):
+        """Yield a board configuration and next move from a LMDB data point
 
-    def _get_augment_params(self, img):
-        # get random grouop-element
-        return self.rng.randint(8)
+        Args:
+            df: dataflow of LMDB entries
+            random (bool, optional): pick random move in match
+        """
+        self.rng = get_rng(self)
 
-    def _augment(self, img, op):
-        # mirror (a != e) ?
-        versions = []
-        versions.append(img)
-        mirror = img[:, ::-1, :]
-        versions.append(mirror)
-        for op in range(1, 4):
-            versions.append(np.array([np.rot90(i, k=op) for i in img]).astype(np.int32))
-            versions.append(np.array([np.rot90(i, k=op) for i in mirror]).astype(np.int32))
+        def func(dp):
+            raw = dp[0]
+            max_moves = len(raw) / 2
 
-        x = np.concatenate(versions, axis=0)
+            # game is too short -> skip
+            if max_moves < 10:
+                return None
 
-        # print x.shape, versions[0].shape
-        return x
+            # last moves are probably to easy (?)
+            m = max_moves - 5
+            if random:
+                m = self.rng.randint(max_moves - 5)
+
+            planes = np.zeros((FEATURE_LEN * 19 * 19), dtype=np.int32)
+            next_move = goplanes.planes_from_bytes(raw.tobytes(), planes, m)
+            planes = planes.reshape((FEATURE_LEN, 19, 19)).astype(np.int32)
+
+            assert not np.isnan(planes).any()
+
+            return [planes, int(next_move)]
+        super(GameDecoder, self).__init__(df, func)
+
+
+class DihedralGroup(MapData):
+    """Apply several transformations to the board.
+
+    Returns all (left) actions of the DihedralGroup D4 = <a, b> where a^2=1, b^4=1, (ab)^2=1
+    to board and label
+
+    Remarks:
+        We could do this directly in the TF-graph. However, tf.image.rotate, tf.map_fn seems to use single threaded
+        CPU implementations. So we do it here instead.
+    """
+
+    def __init__(self, df):
+
+        def mapping_func(dp):
+
+            # apply all actions on the [?, 19, 19] arrays
+            def all_actions(x):
+                versions = []
+                versions.append(x)
+                mirror = x[:, ::-1, :]
+                versions.append(mirror)
+                for op in range(1, 4):
+                    versions.append(np.array([np.rot90(i, k=op) for i in x]).astype(np.int32))
+                    versions.append(np.array([np.rot90(i, k=op) for i in mirror]).astype(np.int32))
+                return np.concatenate(versions, axis=0)
+
+            # decode move
+            y = dp[1] % 19
+            x = (dp[1] - y) // 19
+
+            board = all_actions(dp[0])
+
+            labels_2d = np.zeros([1, 19, 19], dtype=np.uint32)
+            labels_2d[0, x, y] = 1
+            labels_2d = all_actions(labels_2d)
+
+            # compute sparse representation of next move (should be the same as "labels_2d")
+            def rot90_scalar(x, y, s, k=0):
+                for _ in range(k):
+                    x, y = y, x          # transpose
+                    x, y = s - 1 - x, y  # reverse
+                return x, y
+
+            rot_labels = []
+            for k in range(4):
+                xx, yy = rot90_scalar(x, y, 19, k)
+                rot_labels.append(19 * xx + yy)
+                xx, yy = rot90_scalar(19 - x - 1, y, 19, k)
+                rot_labels.append(19 * xx + yy)
+                labels = np.array(rot_labels, dtype=np.int32)
+
+            return [board, labels, labels_2d]
+        super(DihedralGroup, self).__init__(df, mapping_func)
 
 
 if __name__ == '__main__':
@@ -164,10 +162,11 @@ if __name__ == '__main__':
     if args.action == 'debug':
         df = LMDBDataPoint(args.lmdb, shuffle=False)
         df = GameDecoder(df)
+        df = DihedralGroup(df)
         df.reset_state()
 
         for dp in df.get_data():
-            planes = dp[0]
+            planes, labels = dp
             bboard = np.zeros((19, 19), dtype=str)
             bboard[planes[0, :, :] == 1] = 'o'
             bboard[planes[1, :, :] == 1] = 'x'
@@ -176,3 +175,4 @@ if __name__ == '__main__':
             for i in range(19):
                 print " ".join(bboard[i, :])
             print "feature-shape", planes.shape
+            print labels
