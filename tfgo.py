@@ -165,7 +165,7 @@ def get_config(path, k):
 
 
 def eval(model_file, path, k, max_eval=None):
-    df_val = get_data(os.path.join(path, 'go_val.lmdb'), shuffle=False, isTrain=False)
+    df_val = get_data(os.path.join(path, 'go_val.lmdb'), shuffle=True, isTrain=False)
     if max_eval:
         df_val = FixedSizeData(df_val, max_eval)
     pred_config = PredictConfig(
