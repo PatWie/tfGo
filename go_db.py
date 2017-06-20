@@ -35,24 +35,30 @@ class LabelDecoder(MapData):
         def __init__(self, df):
 
             def func(dp):
-                # l = np.zeros(19 * 19, dtype=np.uint32)
-                # l[dp[1]] = 1
-                # l = np.reshape(l, [1, 19, 19])
-
+                # decode move
                 y = dp[1] % 19
                 x = (dp[1] - y) // 19
-                l2 = np.zeros([1, 19, 19], dtype=np.uint32)
-                l2[0, x, y] = 1
 
-                # assert np.all(l == l2)
+                # compute full board representation of next move
+                next_move_2d = np.zeros([1, 19, 19], dtype=np.uint32)
+                next_move_2d[0, x, y] = 1
 
-                # print l
-                # print l2
-                # print ""
-                # print ""
-                # print ""
+                # compute sparse representation of next move
+                def rot90(x, y, s, k=0):
+                    for _ in range(k):
+                        x, y = y, x          # transpose
+                        x, y = s - 1 - x, y  # reverse
+                    return x, y
 
-                return [dp[0], l2, np.tile(dp[1], 8)]
+                rot_labels = []
+                for k in range(4):
+                    xx, yy = rot90(x, y, 19, k)
+                    rot_labels.append(19 * xx + yy)
+
+                    xx, yy = rot90(19 - x - 1, y, 19, k)
+                    rot_labels.append(19 * xx + yy)
+
+                return [dp[0], next_move_2d, np.array(rot_labels, dtype=np.int32)]
             super(LabelDecoder, self).__init__(df, func)
 
 
