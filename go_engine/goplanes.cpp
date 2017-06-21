@@ -1,6 +1,6 @@
 // Author: Patrick Wieschollek <mail@patwie.com>
 /*
-TODO: 
+TODO:
 - deep-copy (std::map(groups) + read)
 - test capturing of stones
 - find illegal moves
@@ -241,7 +241,6 @@ class board_t {
         if (valid_pos(x - 1)) {
             field_t& other_stone = fields[x - 1][y];
             if (other_stone.token() == current) {
-                group_t *other_group = other_stone.group;
                 if (current_stone.group == nullptr)
                     other_stone.group->add(&current_stone);
                 else
@@ -252,7 +251,6 @@ class board_t {
         if (valid_pos(y - 1)) {
             field_t& other_stone = fields[x][y - 1];
             if (other_stone.token() == current) {
-                group_t *other_group = other_stone.group;
                 if (current_stone.group == nullptr)
                     other_stone.group->add(&current_stone);
                 else
@@ -263,7 +261,6 @@ class board_t {
         if (valid_pos(x + 1)) {
             field_t& other_stone = fields[x + 1][y];
             if (other_stone.token() == current) {
-                group_t *other_group = other_stone.group;
                 if (current_stone.group == nullptr)
                     other_stone.group->add(&current_stone);
                 else
@@ -274,7 +271,6 @@ class board_t {
         if (valid_pos(y + 1)) {
             field_t& other_stone = fields[x][y + 1];
             if (other_stone.token() == current) {
-                group_t *other_group = other_stone.group;
                 if (current_stone.group == nullptr)
                     other_stone.group->add(&current_stone);
                 else
@@ -293,13 +289,13 @@ class board_t {
         return (turn == white) ? black : white;
     }
 
-    bool check_move_legal(int x, int y, token_t tok){
+    bool check_move_legal(int x, int y, token_t tok) {
         // position has already a stone ?
-        if(fields[x][y].token() != empty)
+        if (fields[x][y].token() != empty)
             return false;
 
         // is number of liberties after move == 1 ?
-        if(estimate_captured_stones(x, y, tok, tok) > 0)
+        if (estimate_captured_stones(x, y, tok, tok) > 0)
             return false;
 
         fields[x][y].token(tok);
@@ -308,10 +304,10 @@ class board_t {
 
         bool valid = true;
         // TODO: implement "ko rule"
-        if(valid)
+        if (valid)
             if (valid_pos(x - 1)) {
                 field_t& other_stone = fields[x - 1][y];
-                if (other_stone.token() == tok){
+                if (other_stone.token() == tok) {
                     fields[x][y].group = other_stone.group;
                     other_stone.group->stones.push_back(&fields[x][y]);
                     if (other_stone.group->liberties(this) == 1)
@@ -321,10 +317,10 @@ class board_t {
                 }
             }
 
-        if(valid)
+        if (valid)
             if (valid_pos(x + 1)) {
                 field_t& other_stone = fields[x + 1][y];
-                if (other_stone.token() == tok){
+                if (other_stone.token() == tok) {
                     fields[x][y].group = other_stone.group;
                     other_stone.group->stones.push_back(&fields[x][y]);
                     if (other_stone.group->liberties(this) == 1)
@@ -333,10 +329,10 @@ class board_t {
                     fields[x][y].group = nullptr;
                 }
             }
-        if(valid)
+        if (valid)
             if (valid_pos(y - 1)) {
                 field_t& other_stone = fields[x][y - 1];
-                if (other_stone.token() == tok){
+                if (other_stone.token() == tok) {
                     fields[x][y].group = other_stone.group;
                     other_stone.group->stones.push_back(&fields[x][y]);
                     if (other_stone.group->liberties(this) == 1)
@@ -345,10 +341,10 @@ class board_t {
                     fields[x][y].group = nullptr;
                 }
             }
-        if(valid)
+        if (valid)
             if (valid_pos(y + 1)) {
                 field_t& other_stone = fields[x][y + 1];
-                if (other_stone.token() == tok){
+                if (other_stone.token() == tok) {
                     fields[x][y].group = other_stone.group;
                     other_stone.group->stones.push_back(&fields[x][y]);
                     if (other_stone.group->liberties(this) == 1)
@@ -362,13 +358,13 @@ class board_t {
         fields[x][y].token(empty);
 
         return true;
-        
+
     }
 
     int estimate_captured_stones(int x, int y, token_t color_place, token_t color_count) {
         int scores = 0;
 
-        if(fields[x][y].token() != empty){
+        if (fields[x][y].token() != empty) {
             return 0;
         }
 
@@ -380,9 +376,9 @@ class board_t {
 
         if (valid_pos(x - 1)) {
             field_t& other_stone = fields[x - 1][y];
-            if (other_stone.token() == color_count){
-                if(considered_groups.find(other_stone.group->id) == considered_groups.end()){
-                    if (other_stone.group->liberties(this) == 0){
+            if (other_stone.token() == color_count) {
+                if (considered_groups.find(other_stone.group->id) == considered_groups.end()) {
+                    if (other_stone.group->liberties(this) == 0) {
                         scores += other_stone.group->stones.size();
                         considered_groups.insert(other_stone.group->id);
                     }
@@ -393,8 +389,8 @@ class board_t {
         if (valid_pos(x + 1)) {
             field_t& other_stone = fields[x + 1][y];
             if (other_stone.token() == color_count)
-                if(considered_groups.find(other_stone.group->id) == considered_groups.end())
-                    if (other_stone.group->liberties(this) == 0){
+                if (considered_groups.find(other_stone.group->id) == considered_groups.end())
+                    if (other_stone.group->liberties(this) == 0) {
                         scores += other_stone.group->stones.size();
                         considered_groups.insert(other_stone.group->id);
                     }
@@ -403,8 +399,8 @@ class board_t {
         if (valid_pos(y - 1)) {
             field_t& other_stone = fields[x][y - 1];
             if (other_stone.token() == color_count)
-                if(considered_groups.find(other_stone.group->id) == considered_groups.end())
-                    if (other_stone.group->liberties(this) == 0){
+                if (considered_groups.find(other_stone.group->id) == considered_groups.end())
+                    if (other_stone.group->liberties(this) == 0) {
                         scores += other_stone.group->stones.size();
                         considered_groups.insert(other_stone.group->id);
                     }
@@ -413,8 +409,8 @@ class board_t {
         if (valid_pos(y + 1)) {
             field_t& other_stone = fields[x][y + 1];
             if (other_stone.token() == color_count)
-                if(considered_groups.find(other_stone.group->id) == considered_groups.end())
-                    if (other_stone.group->liberties(this) == 0){
+                if (considered_groups.find(other_stone.group->id) == considered_groups.end())
+                    if (other_stone.group->liberties(this) == 0) {
                         scores += other_stone.group->stones.size();
                         considered_groups.insert(other_stone.group->id);
                     }
@@ -478,7 +474,7 @@ class board_t {
                 // Ones : 1 : A constant plane filled with 1
                 planes[3 * NN + map2line(h, w)] = 1;
 
-                  
+
                 // Turns since :8: How many turns since a move was played
                 if (fields[h][w].token() != empty) {
 
@@ -502,10 +498,10 @@ class board_t {
                         planes[11 * NN + map2line(h, w)] = 1;
                 }
 
-                
 
-                // Liberties :8: Number of liberties (empty adjacent points)
-                if (fields[h][w].token() != empty) {
+
+                // Liberties :8: Number of (own) liberties (empty adjacent points)
+                if (fields[h][w].token() == self) {
 
                     const int num_liberties = fields[h][w].group->liberties(this);
 
@@ -527,8 +523,8 @@ class board_t {
                         planes[19 * NN + map2line(h, w)] = 1;
                 }
 
-                // Liberties :8: Number of liberties (empty adjacent points)
-                if (fields[h][w].token() != empty) {
+                // Liberties :8: Number of (opponent) liberties (empty adjacent points)
+                if (fields[h][w].token() == opponent_color) {
 
                     const int num_liberties = fields[h][w].group->liberties(this);
 
@@ -603,7 +599,7 @@ class board_t {
                 // ... but they are missing here ;-)
 
                 // Sensibleness : 1 : Whether a move is legal and does not fill its own eyes
-                if(!check_move_legal(h, w, self)){
+                if (!check_move_legal(h, w, self)) {
                     planes[44 * NN + map2line(h, w)] = 1;
                 }
 
@@ -630,7 +626,7 @@ class board_t {
 };
 
 // to avoid circular dependency
-int group_t::liberties(board_t *b) const{
+int group_t::liberties(board_t *b) const {
     // TODO: this really needs a caching!!!
     // local memory
     std::bitset<19 * 19> already_processed(0);
@@ -673,7 +669,7 @@ class SGFbin {
   public:
     /**
      * @brief load binary SGF file given filename
-     * 
+     *
      * @param path path to binary file
      */
     SGFbin(std::string path) {
@@ -683,7 +679,7 @@ class SGFbin {
     /**
      * @brief load binary SGF from a buffer
      * @details This is mostly for SWIG+Python bindings, where python serves np.arrays(np.uint8)
-     * 
+     *
      * @param char buffer containing the moves from binary SGFfile
      * @param len length of buffer
      */
@@ -693,7 +689,7 @@ class SGFbin {
 
     /**
      * @brief read move from SGFbin description
-     * 
+     *
      * @param x position [1-19]
      * @param y position [A-S]
      * @param is_white move was from player "white"
@@ -757,7 +753,7 @@ class SGFbin {
         std::cout << "SZ[19]" << std::endl;
 
 
-        for (int i = 0; i < moves_.size(); i += 2) {
+        for (unsigned int i = 0; i < moves_.size(); i += 2) {
             decode((unsigned char)moves_[i],
                    (unsigned char)moves_[i + 1],
                    &x, &y, &is_white, &is_move, &is_pass);
@@ -807,7 +803,7 @@ int main2(int argc, char const *argv[]) {
     board_t b;
 
     // replay all actions from SGFbin file
-    for (int i = 0; i < Game.num_actions(); ++i) {
+    for (unsigned int i = 0; i < Game.num_actions(); ++i) {
         int x = 0, y = 0;
         bool is_white = true, is_move = true, is_pass = true;
         token_t turn = white;
@@ -855,7 +851,7 @@ int main(int argc, char const *argv[]) {
 
     b.print();
     b.turn = black;
-    
+
 
     std::cout << std::endl << "-----------------" << std::endl << std::endl;
     for (int h = 0; h < N; ++h) {
@@ -868,7 +864,7 @@ int main(int argc, char const *argv[]) {
     std::cout << std::endl << "-----------------" << std::endl << std::endl;
     for (int h = 0; h < N; ++h) {
         for (int w = 0; w < N; ++w) {
-            if(b.check_move_legal(h, w, black))
+            if (b.check_move_legal(h, w, black))
                 std::cout << ". ";
             else
                 std::cout << "x ";
@@ -879,7 +875,7 @@ int main(int argc, char const *argv[]) {
     std::cout << std::endl  << std::endl;
     b.print();
     std::cout << std::endl << "-----------------" << std::endl << std::endl;
-      
+
     b.play(2, 2, black);
     b.print();
 
@@ -887,10 +883,49 @@ int main(int argc, char const *argv[]) {
 }
 
 
+int play_game(SGFbin *Game, int* data, int moves) {
+
+    token_t opponent_player, current_player;
+    const int evaluate_until = std::min(moves, (int)Game->num_actions() - 1);
+
+    board_t b;
+
+    int x = 0, y = 0;
+    bool is_white = true, is_move = true, is_pass = true;
+
+    for (int i = 0; i < evaluate_until; ++i) {
+        Game->move(i, &x, &y, &is_white, &is_move, &is_pass);
+
+        current_player = is_white ? white : black;
+        opponent_player = is_white ? black : white;
+
+        b.turn = current_player;
+
+        if (!is_pass) {
+            if (is_move) {
+                b.play(x, y, current_player);
+            } else {
+                b.set(x, y, current_player);
+            }
+        } else {
+            b.pass();
+        }
+    }
+
+
+    b.feature_planes(data, opponent_player);
+
+    Game->move(evaluate_until, &x, &y, &is_white, &is_move, &is_pass);
+    const int next_move = 19 * x + y;
+
+    return next_move;
+}
+
+
 /**
  * @brief return board configuration and next move given a file
  * @details SWIG-Python-binding
- * 
+ *
  * @param str path to file
  * @param strlen length of that path name
  * @param data pointer of features (length 19*19*14) for 14 feature planes
@@ -903,53 +938,19 @@ int planes_from_file(char *str, int strlen, int* data, int len, int moves) {
     std::string path = std::string(str);
     SGFbin Game(path);
 
-    // create board
-    board_t b;
-
-    for (int i = 0; i < std::min(moves, (int)Game.num_actions() - 1); ++i) {
-        int x = 0, y = 0;
-        bool is_white = true, is_move = true, is_pass = true;
-        Game.move(i, &x, &y, &is_white, &is_move, &is_pass);
-
-        token_t turn = is_white ? white : black;
-        // std::cout << "x " << x
-        // << "\ty " << y
-        // << "\tis_white " << is_white
-        // << "\tis_move " << is_move
-        // << "\tis_pass " << is_pass
-        // << std::endl;
-        b.turn = turn;
-
-
-        if (!is_pass) {
-            if (is_move) {
-                b.play(x, y, turn);
-            } else {
-                b.set(x, y, turn);
-            }
-        } else {
-            b.pass();
-        }
-    }
-    b.feature_planes(data);
-
-
-    int x = 0, y = 0;
-    bool is_white = true, is_move = true, is_pass = true;
-    token_t turn = white;
-    Game.move(moves, &x, &y, &is_white, &is_move, &is_pass);
-    const int next_move = 19 * x + y;
-
-    return next_move;
+    return play_game(&Game, data, moves);
 }
+
+
+
 
 /**
  * @brief return board configuration and next move given a file
  * @details SWIG-Python-binding
- * 
- * paper: "... Each position consisted of a raw board description s 
+ *
+ * paper: "... Each position consisted of a raw board description s
  *         and the move a selected by the human. ..."
- * 
+ *
  * @param bytes buffer of moves (each move 2 bytes)
  * @param strlen length of buffer
  * @param data pointer of features (length 19*19*14) for 14 feature planes (this is "s")
@@ -961,39 +962,5 @@ int planes_from_bytes(char *bytes, int byteslen, int* data, int len, int moves) 
 
     // the SGFbin parser
     SGFbin Game((unsigned char*) bytes, byteslen);
-
-    // create board representation
-    board_t b;
-
-    const int moves_to_play = std::min(moves, (int)Game.num_actions() - 1);
-
-    for (int i = 0; i < moves_to_play; ++i) {
-        int x = 0, y = 0;
-        bool is_white = true, is_move = true, is_pass = true;
-        Game.move(i, &x, &y, &is_white, &is_move, &is_pass);
-
-        token_t turn = is_white ? white : black;
-        b.turn = turn;
-
-        if (!is_pass) {
-            if (is_move) {
-                b.play(x, y, turn);
-            } else {
-                b.set(x, y, turn);
-            }
-        } else {
-            b.pass();
-        }
-    }
-
-    // compute inputs for neural network
-    b.feature_planes(data);
-
-    // the move we want the network to predict
-    int x = 0, y = 0;
-    bool is_white = true, is_move = true, is_pass = true;
-    Game.move(moves, &x, &y, &is_white, &is_move, &is_pass);
-    const int next_move = 19 * x + y;
-
-    return next_move;
+    return play_game(&Game, data, moves);
 }

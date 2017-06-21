@@ -27,8 +27,9 @@ NUM_PLANES = 47
 
 class Model(ModelDesc):
 
-    def __init__(self, k=128):
+    def __init__(self, k=128, add_wrong=False):
         self.k = k  # match version was 192
+        self.add_wrong = add_wrong  # match version was 192
 
     def _get_inputs(self):
         return [InputDesc(tf.int32, (None, 8 * NUM_PLANES, SHAPE, SHAPE), 'feature_planes'),
@@ -70,36 +71,41 @@ class Model(ModelDesc):
 
         prob = tf.nn.softmax(net, name='probabilities')
         logits = tf.identity(batch_flatten(net), name='logits')
+        labels_2d_flat = tf.identity(batch_flatten(labels_2d), name='labels_2d_flat')
 
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=labels)
+        loss = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_2d_flat)
+        # loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=labels)
         self.cost = tf.reduce_mean(loss, name='total_costs')
 
         acc_top1 = accuracy(logits, labels, 1, name='accuracy-top1')
         acc_top5 = accuracy(logits, labels, 5, name='accuracy-top5')
 
-        wrong_top1 = prediction_incorrect(logits, labels, 1, name='wrong-top1')
-        wrong_top1 = tf.reduce_mean(wrong_top1, name='train-error-top1')
+        summary.add_moving_summary(acc_top1, acc_top5, self.cost)
 
-        wrong_top5 = prediction_incorrect(logits, labels, 5, name='wrong-top5')
-        wrong_top5 = tf.reduce_mean(wrong_top5, name='train-error-top1')
+        if self.add_wrong:
+            wrong_top1 = prediction_incorrect(logits, labels, 1, name='wrong-top1')
+            wrong_top1 = tf.reduce_mean(wrong_top1, name='train-error-top1')
 
-        summary.add_moving_summary(acc_top1, acc_top5, wrong_top1, wrong_top5, self.cost)
+            wrong_top5 = prediction_incorrect(logits, labels, 5, name='wrong-top5')
+            wrong_top5 = tf.reduce_mean(wrong_top5, name='train-error-top1')
+
+            summary.add_moving_summary(wrong_top1, wrong_top5)
 
         # visualization
         with tf.name_scope('visualization'):
             # show the board
-            vis_pos = tf.expand_dims(feature_planes[::8, 0, :, :] - feature_planes[::8, 1, :, :], axis=-1)
+            vis_pos = tf.expand_dims(feature_planes[:, 0, :, :] - feature_planes[:, 1, :, :], axis=-1)
             vis_pos = (vis_pos + 1) * 128
             vis_pos = tf.image.grayscale_to_rgb(vis_pos)
 
             # show logits
-            vis_logits = net[::8, 0, :, :]
+            vis_logits = net[:, 0, :, :]
             vis_logits -= tf.reduce_min(vis_logits)
             vis_logits /= tf.reduce_max(vis_logits)
             vis_logits = tf.reshape(vis_logits * 256, [-1, SHAPE, SHAPE, 1])
             vis_logits = tf.image.grayscale_to_rgb(vis_logits)
 
-            vis_prob = prob[::8, 0, :, :]
+            vis_prob = prob[:, 0, :, :]
             # just for visualization
             vis_prob -= tf.reduce_min(vis_prob)
             vis_prob /= tf.reduce_max(vis_prob)
@@ -107,7 +113,7 @@ class Model(ModelDesc):
             vis_prob = tf.image.grayscale_to_rgb(vis_prob)
 
             # convert labels to board representation
-            viz_label = labels_2d[::8, :, :]
+            viz_label = labels_2d[:, :, :]
             viz_label = tf.cast(viz_label, tf.float32)
             viz_label = tf.reshape(viz_label * 256, [-1, SHAPE, SHAPE, 1])
             viz_label = tf.image.grayscale_to_rgb(viz_label)
@@ -115,7 +121,7 @@ class Model(ModelDesc):
             viz = tf.concat([vis_pos, vis_logits, vis_prob, viz_label], axis=2)
             viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='viz')
 
-        tf.summary.image('pos, logits, prob, labels', viz, BATCH_SIZE * 8)
+        tf.summary.image('pos, logits, prob, labels', viz, BATCH_SIZE)
 
     def _get_optimizer(self):
         lr = symbolic_functions.get_scalar_var('learning_rate', 0.003, summary=True)
@@ -124,22 +130,24 @@ class Model(ModelDesc):
 
 def get_data(lmdb, shuffle=False, isTrain=False):
     df = LMDBDataPoint(lmdb, shuffle=True)
-    df = GameDecoder(df, random=True)
-    df = DihedralGroup(df)
     df = PrefetchData(df, 5000, 1)
+    df = GameDecoder(df, random_move=True)
+    df = DihedralGroup(df)
     if isTrain:
         df = PrefetchDataZMQ(df, min(20, multiprocessing.cpu_count()))
     df = BatchData(df, BATCH_SIZE, remainder=not isTrain)
     return df
 
 
-def get_config(path, k):
+def get_config(path, k, max_eval=None):
     logger.set_logger_dir(
         os.path.join('train_log',
                      'tfgo-policy_net-{}'.format(k)))
 
-    df_train = get_data(os.path.join(path, 'go_train.lmdb'), True)
-    df_val = get_data(os.path.join(path, 'go_val.lmdb'), False)
+    df_train = get_data(os.path.join(path, 'go_train.lmdb'), shuffle=True, isTrain=True)
+    df_val = get_data(os.path.join(path, 'go_val.lmdb'), shuffle=True, isTrain=False)
+    if max_eval:
+        df_val = FixedSizeData(df_val, max_eval)
 
     return TrainConfig(
         model=Model(k),
@@ -151,6 +159,7 @@ def get_config(path, k):
             InferenceRunner(df_val, [ScalarStats('total_costs'),
                                      ScalarStats('accuracy-top1'),
                                      ScalarStats('accuracy-top5')]),
+            # Use train_log/tfgo-policy_net-128/hyper.txt to control your parameters
             HumanHyperParamSetter('learning_rate'),
         ],
         extra_callbacks=[
@@ -169,7 +178,7 @@ def eval(model_file, path, k, max_eval=None):
     if max_eval:
         df_val = FixedSizeData(df_val, max_eval)
     pred_config = PredictConfig(
-        model=Model(k),
+        model=Model(k, add_wrong=True),
         session_init=get_model_loader(model_file),
         input_names=['feature_planes', 'labels', 'labels_2d'],
         output_names=['wrong-top1', 'wrong-top5']
@@ -204,7 +213,7 @@ if __name__ == '__main__':
             eval(args.load, args.path, args.k, max_eval=args.max_eval)
             sys.exit()
 
-        config = get_config(args.path, args.k)
+        config = get_config(args.path, args.k, max_eval=args.max_eval)
         config.nr_tower = NR_GPU
 
         if args.load:

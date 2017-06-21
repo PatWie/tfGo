@@ -35,14 +35,14 @@ class GoGamesFromDir(tp.dataflow.DataFlow):
 class GameDecoder(MapData):
     """Decode SGFbin and play game until a position.
     """
-    def __init__(self, df, random=True):
+    def __init__(self, df, random_move=True):
         """Yield a board configuration and next move from a LMDB data point
 
         Args:
             df: dataflow of LMDB entries
-            random (bool, optional): pick random move in match
+            random_move (bool, optional): pick random_move move in match
         """
-        self.rng = get_rng(self)
+        rng = get_rng(self)
 
         def func(dp):
             raw = dp[0]
@@ -54,8 +54,8 @@ class GameDecoder(MapData):
 
             # last moves are probably to easy (?)
             m = max_moves - 5
-            if random:
-                m = self.rng.randint(max_moves - 5)
+            if random_move:
+                m = rng.randint(2, max_moves - 5)
 
             planes = np.zeros((FEATURE_LEN * 19 * 19), dtype=np.int32)
             next_move = goplanes.planes_from_bytes(raw.tobytes(), planes, m)
@@ -166,7 +166,7 @@ if __name__ == '__main__':
         df.reset_state()
 
         for dp in df.get_data():
-            planes, labels = dp
+            planes, labels, labels2d = dp
             bboard = np.zeros((19, 19), dtype=str)
             bboard[planes[0, :, :] == 1] = 'o'
             bboard[planes[1, :, :] == 1] = 'x'

@@ -2,40 +2,18 @@
 
 Yet another re-implementation of the policy-network (supervised) from Deepmind's AlphaGo. This uses a C++ backend to compute the feature planes presented in the [Nature-Paper](https://gogameguru.com/i/2016/03/deepmind-mastering-go.pdf) and a custom fileformat for efficient storage. To train the network it uses the dataflow and multi-GPU setup of [TensorPack](https://github.com/ppwwyyxx/tensorpack).
 
-# Fileformat
-
-In contrast to chess (8x8) we cannot store a board configuration into `uin64` datatypes (one for each figure). As computing the GO-features for the NN requires to compute liberties of groups all the time, we store the moves into a binary format and replay them. The best I came up with is 2bytes for each single move:
-
-```
----pmcyyyyyxxxxx
-
-p: is action passed ? [1:yes, 0:no]
-m: is action a move ? [1:yes, 0:no] (sgf supports 'set' as well)
-c: is action from white ? [1:yes, 0:no] (0 means black ;-) )
-y: encoded row (1-19)
-x: encoded column (a-s)
--: free bits (maybe we can store something useful here)
-```
-
-This gives two nice properties:
-- Reading a match and its moves in C++ is absolute easy.
-- Computing the length of the game is simply `sizeof(file) / 2` (we just ignore the handicap currently)
 
 # Data + Features
 
-A [modified](https://github.com/TheDuck314/go-NN) version of the script file downloads+extracts a few (>1 million) publicity available GO games encoded in the SGF format (plain text) by:
-
-        ./get_data.sh
-
-The files will be downloaded to `/tmp/data`. To handle these games efficiently, we convert them to binary by
+See [here](https://u-go.net/gamerecords/) or [here](https://www.u-go.net/gamerecords-4d/) to get a database of GO games in the SGF fileformat. To handle these games efficiently, we convert them to binary by
 
         python convert.py --input /tmp/data/ --out /tmp/out
 
-Now this gives several small files (1681414 files here). Some files do not work and raise an exception (why?). I just skip them To merge all games within a single file, we dump these games to an LMDB file. This also gives a 90%/10% (1513267/168141) train/val split of the games:
+Now this gives several small files (1681414 files here). I just skip all corrupted SGF files. Now, to merge all games within a single file, we dump these games to an LMDB file. This also gives a 90%/10% (1513267/168141) train/val split of the games:
 
         python go_db.py --lmdb /tmp/ --pattern '/tmp/out/*.sgfbin' --action create
 
-So all training data is just (1.1GB) and validation is just 120MB. 
+I do not split the positions into train/val, I split the games to makes sure they are totally independent. All training data can be compressed to just (1.1GB) and validation data is just 120MB. 
 To simulate the board position from the encoded moves, we setup the SWIG-Python binding `goplanes` of the C++ implementation by:
 
         cd go-engine && python setup.py install --user
@@ -54,10 +32,12 @@ To train the version with `128` filters just fire up.
 
         python tfgo.py --gpu 0,1 --k 128 --path /tmp # or --gpu 0 for single gpu
 
-This might take a some some some ... time. The output is 
+This might take a some some some ... time. Using one GPU it can batch-evaluate (inference only) approx. 2662 positions/sec.
 
-         64%|#######4               |60951/94579[11:08<06:11,20.46it/s], total_costs=4.5, accuracy-top1=0.125, accuracy-top5=0.312
+I saw no big different on a small number of GPUS, this uses the Sync-Training rather than any Async-Training. It will also create checkpoints for the best performing models from the validation phase.
 
-during training. As I saw no big different on a small number of GPUS, this uses the Sync-Training rather than any Async-Training.
+Tensorboard should show something like
 
-It will also create checkpoints for the best performing models from the validation phase.
+![sample](tb.jpg)
+
+At time of writing, I get a validation accuracy of 51.9 % (Top1) and 83.7 % (Top5). Keep fingers crossed I did not mess up the validation part of the code.
