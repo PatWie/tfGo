@@ -16,7 +16,7 @@ class field_t {
 
     const token_t token() const;
 
-    void token(token_t tok);
+    void token(const token_t tok);
     void pos(int x, int y);
 
     const int x() const;
