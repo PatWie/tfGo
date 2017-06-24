@@ -8,7 +8,7 @@ from tensorpack import *
 import glob
 import numpy as np
 import argparse
-from go_engine import goplanes
+from go_engine.python import goplanes
 from tensorpack.utils import get_rng
 
 # the ladder heuristic is missing (2 planes), hence 47 instead of 49

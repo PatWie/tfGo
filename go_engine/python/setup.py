@@ -3,6 +3,7 @@ import numpy
 import os
 import re
 import requests
+import glob
 
 # get NUMPY.I
 np_version = re.compile(r'(?P<MAJOR>[0-9]+)\.'
@@ -24,6 +25,8 @@ with open(np_file_name, 'wb') as file:
 os.environ['CC'] = 'g++'
 setup(name='Goplanes', version='1.0',
       ext_modules=[Extension('_goplanes',
-                   ['goplanes.cpp', 'goplanes.i'],
+                   ['goplanes.cpp', 'goplanes.i'] + glob.glob('../src/*.cpp'),
                    extra_compile_args=["-Wno-deprecated", "-O3", "-std=c++11"],
-                   include_dirs=[numpy.get_include(), '.'])])
+                   include_dirs=[numpy.get_include(), '.', '../src'])
+                   ]
+      )

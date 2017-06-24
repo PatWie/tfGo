@@ -274,6 +274,45 @@ def convert(pattern):
             logger.info('--> %s' % s.meta.info['GC'])
 
 
+def locall(pattern):
+    files = glob.glob(pattern)
+    for fn in files:
+        if '1700-99' in fn:
+            logger.warn('{} is too old'.format(fn))
+            continue
+        if '0196-1699' in fn:
+            logger.warn('{} is too old'.format(fn))
+            continue
+
+        s = SGFReader(fn)
+        if s.meta.correct:
+            if not s.amateur:
+                # the interesting ones
+                bin_content = []
+                for k, v in s.moves:
+
+                    is_set = False
+                    if k in ['AB', 'AW']:
+                        is_set = True
+
+                    if k in ['B', 'AB']:
+                        color = 'B'
+                    else:
+                        color = 'W'
+
+                    if len(v.strip()) == 0 or v.strip().lower() == 'tt':
+                        # pass
+                        bin_content += encode(color, 0, 0, move=False, pass_move=True)
+                    else:
+                        x, y = v.lower()
+                        if x == 'j' or y == 'j':
+                            print k, v, fn
+
+        else:
+            logger.warn('{} is not correct'.format(fn))
+            logger.info('--> %s' % s.meta.info['GC'])
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--action', help='', default='debug', type=str)
@@ -282,6 +321,10 @@ if __name__ == '__main__':
 
     if args.action == 'debug':
         debug(args.pattern)
+        sys.exit(0)
+
+    if args.action == 'local':
+        locall(args.pattern)
         sys.exit(0)
 
     if args.action == 'count':
