@@ -130,7 +130,9 @@ class board_t {
      */
      const std::vector<std::pair<int, int> > neighbor_fields(int x, int y)  const;
 
-    bool is_ladder_capture(int x, int y, token_t hunter, int recursion_depth=50, int fx=-1, int fy=-1) const;
+    bool is_ladder_capture(int x, int y,
+                           token_t hunter, token_t current,
+                           int recursion_depth, int fx, int fy) const;
 
 
     std::array<std::array<field_t, N>, N> fields;

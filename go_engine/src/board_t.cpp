@@ -94,7 +94,9 @@ int board_t::play(int x, int y, token_t tok) {
     return 0;
 }
 
-bool board_t::is_ladder_capture(int x, int y, token_t hunter, int recursion_depth, int fx, int fy) const{
+bool board_t::is_ladder_capture(int x, int y,
+                                token_t hunter, token_t current,
+                                int recursion_depth, int fx, int fy) const{
     // does placing a token at (x,y) from hunter would capture a group?
     // we focus on the group in fx, fy
     const token_t victim = opponent(hunter);
@@ -108,14 +110,33 @@ bool board_t::is_ladder_capture(int x, int y, token_t hunter, int recursion_dept
         return false;
     }
 
+    std::vector<std::pair<int, int> > possible_group_victims;
+
     if((fx==-1) && (fy==-1)){
         // not a particular group focus
         const auto neighbors = neighbor_fields(x, y);
         for(auto &&n : neighbors){
-
+            const field_t& other_stone = fields[n.first][n.second];
+            if(other_stone.token() == victim){
+                // we could capture that stone
+                if(liberties(n.first, n.second) == 2){
+                    // it is more likely that we capture that stone
+                    possible_group_victims.push_back({n.first, n.second});
+                }
+            }
         }
     }else{
         // only focus on group of (fx, fy)
+        possible_group_victims.push_back({fx, fy});
+    }
+
+    for(auto &&pos : possible_group_victims){
+        board_t* copy = clone();
+        copy->play(x, y, current);
+
+        // TODO ....
+
+        delete copy;
     }
 
 
