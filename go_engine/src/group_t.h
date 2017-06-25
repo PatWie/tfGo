@@ -4,6 +4,7 @@
 #define ENGINE_GROUP_T_H
 
 #include <vector>
+#include <memory>
 
 
 
@@ -25,7 +26,7 @@ class group_t {
 
     // count liberties (see below)
     // TODO: cache result (key should be iteration in game)
-    int liberties(const board_t *b)  const;
+    int liberties(const board_t* const b)  const;
 
     // collection of pointers to stones
     std::vector<field_t *> stones;

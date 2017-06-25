@@ -5,34 +5,37 @@ Yet another re-implementation of the policy-network (supervised) from Deepmind's
 
 # Data + Features
 
-See [here](https://u-go.net/gamerecords/) or [here](https://www.u-go.net/gamerecords-4d/) to get a database of GO games in the SGF fileformat. To handle these games efficiently, we convert them to binary by
+See [here](https://u-go.net/gamerecords/) or [here](https://www.u-go.net/gamerecords-4d/) to get a database of GO games in the SGF fileformat. it is also possible to buy a database `GoGoD`. This database consists of `89942` (without the games before 1800). Some statistics about this database are
 
-        python convert.py --input /tmp/data/ --out /tmp/out
+        - 2052 out of 89942 games are corrupt ~2.281470%
+        - 2908 out of 89942 games are amateur ~3.233195%
+        - total moves 17 676 038 (games with professional)
+        - average moves 207 per game
+        - u-go.net provides 1681414 files including some amateur games.
 
-Now this gives several small files (1681414 files here). I just skip all corrupted SGF files. Now, to merge all games within a single file, we dump these games to an LMDB file. This also gives a 90%/10% (1513267/168141) train/val split of the games:
+To handle these games efficiently, we convert them to binary by
 
-        python go_db.py --lmdb /tmp/ --pattern '/tmp/out/*.sgfbin' --action create
+        python reader.py --action convert --pattern "/tmp/godb/Database/*/*.sgf"
 
-I do not split the positions into train/val, I split the games to makes sure they are totally independent. All training data can be compressed to just (1.1GB) and validation data is just 120MB. 
+Now, to merge all games within a single file, we dump these games to an LMDB file (train/val/test split of the games):
+
+        python go_db.py --lmdb "/tmp/godb/" --pattern "/tmp/godb/Database/*/*.sgfbin" --action create
+
+I do not split the positions into train/val/test, I split the games to makes sure they are totally independent. All training data can be compressed to just (1.1GB/55M) and validation data is just (120MB/6.2MB) for u-go.net/GoGoD databases. 
 To simulate the board position from the encoded moves, we setup the SWIG-Python binding `goplanes` of the C++ implementation by:
 
         cd go-engine && python setup.py install --user
 
-Reading some feature-planes (currently I only implemented 47 of out 49) from random moves extracted from the db gives a speed of 13794.03 examples/s.
+Reading some feature-planes (currently I only implemented 47 of out 49) from random moves extracted from the db gives a speed of 108.03 examples/s in a single-threaded run which includes also all rotations. I verified this implementation along all final positions from GoGoD simulated in GnuGo and GoPlane.
+Training uses an efficient multi-process pre-fetching (530 examples/s 12 core machine)
 
-        python go_db.py --action benchmark --lmdb /tmp/go_train.lmdb
-
-To see the actual board positions:
-
-        python go_db.py --action debug --lmdb /tmp/go_train.lmdb
+        python go_db.py --lmdb "/home/patwie/godb/go_train.lmdb" --action benchmark
 
 # Training 
 
 To train the version with `128` filters just fire up. 
 
         python tfgo.py --gpu 0,1 --k 128 --path /tmp # or --gpu 0 for single gpu
-
-This might take a some some some ... time. Using one GPU it can batch-evaluate (inference only) approx. 2662 positions/sec.
 
 I saw no big different on a small number of GPUS, this uses the Sync-Training rather than any Async-Training. It will also create checkpoints for the best performing models from the validation phase.
 

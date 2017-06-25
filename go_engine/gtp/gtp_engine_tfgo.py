@@ -22,7 +22,7 @@ class TfGoEngine(BaseEngine):
         """
         assert os.path.isdir(export_dir)
         # we will use gnugo to guide our network
-        self.assistant = GnuGoEngine('assistant', verbose=True)
+        self.assistant = GnuGoEngine('assistant', verbose=False)
         # create session and load network
         self.sess = tf.Session(graph=tf.Graph(), config=tf.ConfigProto(allow_soft_placement=True))
         tf.saved_model.loader.load(self.sess, [tag_constants.SERVING], export_dir)
@@ -49,7 +49,8 @@ class TfGoEngine(BaseEngine):
                     tok = 'y'
                 if planes[0, 1, ix, iy] == 1:
                     tok = 'n'
-                debug_prob = "%s %04.2f(%s)" % (debug_prob, prob[ix][iy], tok)
+                # debug_prob = "%s %04.2f(%s)" % (debug_prob, prob[ix][iy], tok)
+                debug_prob += '  .%02i(%s)' % (int(prob[ix][iy] * 100), tok)
             debug_prob += '  %02i ' % (19 - ix)
             debug_prob += "\n"
         print(debug_prob + '   ' + "".join(legend_a))
@@ -63,7 +64,8 @@ class TfGoEngine(BaseEngine):
 
         assert color in ['W', 'B']
 
-        # ask GnuGo if we should pass
+        # ask GnuGo if we should pass or resign
+        # TODO: replace by value network
         _, _, hint = self.assistant.propose_move(color)
 
         if hint == 'pass':
@@ -73,15 +75,18 @@ class TfGoEngine(BaseEngine):
             return 0, 0, 'resign'
 
         # ask GnuGo for a current board configuration
+        # TODO: not sure, if we can keep the C++ structures from goplane in memory between python calls
+        #       but GnuGo is fast enough to build the board
         white_board, black_board = self.assistant.get_board()
 
         # extract features for this board configuration
-        planes = np.zeros((47 * 19 * 19), dtype=np.int32)
+        planes = np.zeros((47, 19, 19), dtype=np.int32)
         goplanes.planes_from_position(white_board, black_board, planes, int(color == 'W'))
         planes = planes.reshape((1, 47, 19, 19))
 
         # predict a move
         prob = self.get_probabilities(planes)
+        print('TfGO probabilities:\n')
         self.debug(prob, planes)
 
         prob = prob.reshape(19 * 19)
@@ -89,16 +94,20 @@ class TfGoEngine(BaseEngine):
         # sort moves according probability (high to low)
         candidates = np.argsort(prob)[::-1]
 
-        print "TfGO Top-10 predictions:"
+        print "TfGO Top-10 predictions (legal moves):"
 
-        for i in range(10):
+        found_legal_moves = 0
+        for i in range(60):
             c = candidates[i]
             p = prob[c]
             x, y = flat2plane(c)
             # WHY ?????????????
             x, y = y + 1, 19 - x
-            is_legal = 'legal' if self.assistant.is_legal(color, (x, y)) else 'illegal'
-            print "  %s \t(%f) \t%s" % (self.tuple2string((x, y)), p, is_legal)
+            if self.assistant.is_legal(color, (x, y)):
+                found_legal_moves += 1
+                print "%03i:  %s \t(%f)" % (i + 1, self.tuple2string((x, y)), p)
+                if found_legal_moves == 10:
+                    break
 
         for c in candidates:
             p = prob[c]

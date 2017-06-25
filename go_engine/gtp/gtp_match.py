@@ -11,21 +11,30 @@ class Match(object):
         self.passed = False
         self.finished = False
 
-    def ply(self, p):
+    def ply(self, p, verbose=True):
+        """Make a move (ply).
 
+        Args:
+            p (str): player ('W' or 'B')
+
+        Returns:
+            TYPE: Description
+        """
         if self.finished:
             return
 
         # generate and play move
-        if p == 'W':
+        if p.upper() == 'W':
             x, y, h = self.player_white.generate_move('W')
         else:
             x, y, h = self.player_black.generate_move('B')
 
+        # ok game ends here
         if h == 'resign':
             self.finished = True
             return
 
+        # game only ends if both players pass
         if h == 'pass':
             if self.passed:
                 # both player passed
@@ -36,12 +45,14 @@ class Match(object):
         else:
             self.passed = False
 
-        # synchronize both boards
-        if p == 'W':
+        # synchronize boards accross GTP applications
+        # sending move to other GTP app
+        if p.upper() == 'W':
             self.player_black.play('W', (x, y))
         else:
             self.player_white.play('B', (x, y))
 
-        # just to flood the terminal
-        self.player_white.show_board()
-        self.player_black.show_board()
+        if verbose:
+            # just to flood the terminal
+            self.player_white.show_board()
+            self.player_black.show_board()

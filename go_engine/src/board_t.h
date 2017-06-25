@@ -8,8 +8,9 @@
 #include "field_t.h"
 
 #include <array>
+#include <memory>
+#include <vector>
 #include <map>
-
 
 
 class board_t {
@@ -20,6 +21,7 @@ class board_t {
      */
     board_t();
     ~board_t();
+
 
     /**
      * @brief Just for convenience.
@@ -52,13 +54,63 @@ class board_t {
      */
     group_t* find_or_create_group(int id);
 
+    /**
+     * @brief switch perspective of player
+     */
     const token_t opponent(token_t tok) const;
 
-    bool check_move_legal(int x, int y, token_t tok) const ;
+    /**
+     * @brief test whether placing a token at x, y is legal for given player
+     * 
+     * @param x [description]
+     * @param y [description]
+     * @param tok checking for token color of tok
+     * @return valid?
+     */
+    bool is_legal(int x, int y, token_t tok) const ;
+
+    /**
+     * @brief place token and count effect of captured stones
+     * @details [long description]
+     * 
+     * @param x [description]
+     * @param y [description]
+     * @param color_place [description]
+     * @param color_count [description]
+     * @return number of captured stones
+     */
     int estimate_captured_stones(int x, int y, token_t color_place, token_t color_count) const ;
 
-    int find_captured_stones(int x, int y, token_t focus);
-    void feature_planes(int *planes, token_t self)const;
+    /**
+     * @brief search for groups without liberties and remove them
+     * @details [long description]
+     * 
+     * @param x [description]
+     * @param y [description]
+     * @param focus just look at groups of this color
+     * @return number of removed stones
+     */
+    int count_and_remove_captured_stones(int x, int y, token_t focus);
+
+    /**
+     * @brief compute features of current board configuration as an input for the NN
+     * @details ust 47 out of the 49 from the Nature paper
+     * 
+     * @param planes 47x19x19 values
+     * @param self perspective from (predict move for)
+     */
+    void feature_planes(int *planes, token_t self) const;
+
+    /**
+     * @brief count liberties from a field
+     * @details could benefit from a caching
+     * 
+     * @param x [description]
+     * @param y [description]
+     * 
+     * @return [description]
+     */
+    int liberties(int x, int y) const;
 
     /**
      * @brief Create a deep copy of current board configuration.
@@ -67,9 +119,12 @@ class board_t {
      */
     board_t* clone() const ;
 
+    std::vector<std::pair<int, int> > neighbors(int x, int y);
+
+    bool is_ladder_capture(int x, int y, token_t hunter, int recursion_depth=50, int fx=-1, int fy=-1) const;
+
 
     std::array<std::array<field_t, N>, N> fields;
-
     std::map<int, group_t*> groups;
     std::map<int, group_t*>::iterator groups_iter;
 

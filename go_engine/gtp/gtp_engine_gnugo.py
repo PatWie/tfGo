@@ -34,6 +34,7 @@ class GnuGoEngine(BaseEngine):
         Returns:
             TYPE: Description
         """
+        assert color in ['W', 'B']
         move = self.bridge.send('gg_genmove {}\n'.format(color))
         return self.parse_move(move)
 

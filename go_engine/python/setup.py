@@ -23,6 +23,7 @@ with open(np_file_name, 'wb') as file:
 
 # build
 os.environ['CC'] = 'g++'
+# os.environ['CC'] = 'clang++'
 setup(name='Goplanes', version='1.0',
       ext_modules=[Extension('_goplanes',
                    ['goplanes.cpp', 'goplanes.i'] + glob.glob('../src/*.cpp'),

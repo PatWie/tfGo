@@ -48,11 +48,11 @@ void group_t::merge(group_t* other) {
         s->group = this;
         stones.push_back(s);
     }
-    delete other;
+    // delete other;
 }
 
 // to avoid circular dependency
-int group_t::liberties(const board_t *b) const {
+int group_t::liberties(const board_t* const b) const {
     // TODO: this really needs a caching!!!
     // local memory
     std::bitset<19 * 19> already_processed(0);

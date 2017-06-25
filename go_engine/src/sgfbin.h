@@ -43,6 +43,8 @@ class SGFbin {
                       int *x, int *y, 
                       bool *is_white, bool *is_move, bool *is_pass);
 
+    void debug(unsigned int step);
+
     /**
      * @brief decodes a move from 2 bytes
      * @details Each move is represented by 2 bytes which can be divided into

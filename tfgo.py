@@ -70,8 +70,10 @@ class Model(ModelDesc):
             net = Conv2D('conv_final', net, out_channel=1, kernel_shape=1, use_bias=True, nl=tf.identity)
 
         prob = tf.nn.softmax(net, name='probabilities')
-        logits = tf.identity(batch_flatten(net), name='logits')
-        labels_2d_flat = tf.identity(batch_flatten(labels_2d), name='labels_2d_flat')
+        logits = tf.reshape(net, [-1, 19 * 19], name='logits')
+        # logits = tf.identity(batch_flatten(net), name='logits')
+        labels_2d_flat = tf.reshape(labels_2d, [-1, 19 * 19], name='labels_2d_flat')
+        # labels_2d_flat = tf.identity(batch_flatten(labels_2d), name='labels_2d_flat')
 
         loss = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_2d_flat)
         # loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=labels)
@@ -126,10 +128,11 @@ class Model(ModelDesc):
     def _get_optimizer(self):
         lr = symbolic_functions.get_scalar_var('learning_rate', 0.003, summary=True)
         return tf.train.GradientDescentOptimizer(lr)
+        # return tf.train.AdamOptimizer(lr)
 
 
 def get_data(lmdb, shuffle=False, isTrain=False):
-    df = LMDBDataPoint(lmdb, shuffle=True)
+    df = LMDBDataPoint(lmdb, shuffle=isTrain)
     df = PrefetchData(df, 5000, 1)
     df = GameDecoder(df, random_move=True)
     df = DihedralGroup(df)
@@ -164,7 +167,8 @@ def get_config(path, k, max_eval=None):
         ],
         extra_callbacks=[
             MovingAverageSummary(),
-            ProgressBar(['tower0/total_costs:0', 'tower0/accuracy-top1:0', 'tower0/accuracy-top5:0']),
+            ProgressBar(['tower0/total_costs:0', 'learning_rate:0',
+                         'tower0/accuracy-top1:0', 'tower0/accuracy-top5:0']),
             MergeAllSummaries(),
             RunUpdateOps()
         ],
@@ -185,10 +189,15 @@ def eval(model_file, path, k, max_eval=None):
     )
     pred = SimpleDatasetPredictor(pred_config, df_val)
     acc1, acc5 = RatioCounter(), RatioCounter()
-    for o in pred.get_result():
-        batch_size = o[0].shape[0]
-        acc1.feed(o[0].sum(), batch_size)
-        acc5.feed(o[1].sum(), batch_size)
+    try:
+        for o in pred.get_result():
+            batch_size = o[0].shape[0]
+            acc1.feed(o[0].sum(), batch_size)
+            acc5.feed(o[1].sum(), batch_size)
+    except Exception as e:
+        print e
+        from IPython import embed
+        embed()
     err1 = (acc1.ratio) * 100
     err5 = (acc5.ratio) * 100
     print("Top1 Accuracy: {0:.2f}% Error: {1:.2f}% Random-Guess: ~0.44%".format(100 - err1, err1))
@@ -217,6 +226,6 @@ if __name__ == '__main__':
         config.nr_tower = NR_GPU
 
         if args.load:
-            config.session_init = SaverRestore(args.load)
+            config.session_init = SaverRestore(args.load, ignore=['learning_rate'])
 
         SyncMultiGPUTrainer(config).train()

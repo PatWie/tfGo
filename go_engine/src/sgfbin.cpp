@@ -22,6 +22,37 @@ void SGFbin::parse(unsigned int step,
            is_white, is_move, is_pass);
 }
 
+void SGFbin::debug(unsigned int step) {
+    int x=0, y=0;
+    bool is_white=false, is_move=false, is_pass=false;
+
+    parse((unsigned char)moves_[2 * step],(unsigned char)moves_[2 * step + 1],
+           &x, &y, 
+           &is_white, &is_move, &is_pass);
+
+    if(is_white){
+        if(is_move){
+            printf("W %i %i\n", x, y);
+        }else{
+            if(is_pass){
+                printf("W tt\n");
+            }else{
+                printf("AW %i %i\n", x, y);
+            }
+        }
+    }else{
+        if(is_move){
+            printf("B %i %i\n", x, y);
+        }else{
+            if(is_pass){
+                printf("B tt\n");
+            }else{
+                printf("AB %i %i\n", x, y);
+            }
+        }
+    }
+}
+
 
 void SGFbin::parse(unsigned char m1, unsigned char m2,
                    int *x, int *y, 
@@ -29,7 +60,13 @@ void SGFbin::parse(unsigned char m1, unsigned char m2,
 
     const int byte1 = (int) m1;
     const int byte2 = (int) m2;
+
+    // std::cout << "decode "<< byte1 << " " << byte2 << std::endl;
+      
     int value = (byte1 << 8) + byte2;
+    // int value = byte2 * 256 + byte1;
+    // std::cout << "value "<< value << std::endl;
+      
 
     *is_white = value & 1024;
     *is_move = value & 2048;
@@ -45,6 +82,8 @@ void SGFbin::parse(unsigned char m1, unsigned char m2,
     *x = (byte2 % 32);
     *y = (value - *x) / 32;
 }
+
+
 
 
 const unsigned int SGFbin::num_actions() const {
@@ -88,6 +127,8 @@ std::vector<char> SGFbin::read_moves(char const* filename) {
     std::vector<char>  result(pos);
     ifs.seekg(0, std::ios::beg);
     ifs.read(result.data(), pos);
+
+    ifs.close();
 
     return result;
 }

@@ -10,6 +10,7 @@ import numpy as np
 import argparse
 from go_engine.python import goplanes
 from tensorpack.utils import get_rng
+import multiprocessing
 
 # the ladder heuristic is missing (2 planes), hence 47 instead of 49
 FEATURE_LEN = 47
@@ -52,18 +53,17 @@ class GameDecoder(MapData):
             if max_moves < 10:
                 return None
 
-            # last moves are probably to easy (?)
-            m = max_moves - 5
+            # all move up to the last one (we want to predict at least one move)
+            move_id = 1 + max_moves - 2
             if random_move:
-                m = rng.randint(2, max_moves - 5)
+                move_id = rng.randint(1, max_moves - 1)
 
-            planes = np.zeros((FEATURE_LEN * 19 * 19), dtype=np.int32)
-            next_move = goplanes.planes_from_bytes(raw.tobytes(), planes, m)
-            planes = planes.reshape((FEATURE_LEN, 19, 19)).astype(np.int32)
+            features = np.zeros((FEATURE_LEN, 19, 19), dtype=np.int32)
+            next_move = goplanes.planes_from_bytes(raw.tobytes(), features, move_id)
 
-            assert not np.isnan(planes).any()
+            assert not np.isnan(features).any()
 
-            return [planes, int(next_move)]
+            return [features, int(next_move)]
         super(GameDecoder, self).__init__(df, func)
 
 
@@ -82,6 +82,8 @@ class DihedralGroup(MapData):
 
         def mapping_func(dp):
 
+            next_move = dp[1]
+
             # apply all actions on the [?, 19, 19] arrays
             def all_actions(x):
                 versions = []
@@ -94,13 +96,13 @@ class DihedralGroup(MapData):
                 return np.concatenate(versions, axis=0)
 
             # decode move
-            y = dp[1] % 19
-            x = (dp[1] - y) // 19
+            y = next_move % 19
+            x = (next_move - y) // 19
 
             board = all_actions(dp[0])
 
-            labels_2d = np.zeros([1, 19, 19], dtype=np.uint32)
-            labels_2d[0, x, y] = 1
+            labels_2d = np.zeros([1, 19, 19], dtype=np.int32)
+            labels_2d[0][x][y] = 1
             labels_2d = all_actions(labels_2d)
 
             # compute sparse representation of next move (should be the same as "labels_2d")
@@ -124,9 +126,9 @@ class DihedralGroup(MapData):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--lmdb', type=str, help='path to lmdb', default='/tmp/')
+    parser.add_argument('--lmdb', type=str, help='path to lmdb', default='/home/patwie/godb/')
     parser.add_argument('--pattern', type=str, help='pattern of binary sgf files',
-                        default='/tmp/out/*.sgfbin')
+                        default='/home/patwie/godb/Database/*/*.sgfbin')
     parser.add_argument('--action', type=str, help='action', choices=['create', 'debug', 'benchmark'])
     args = parser.parse_args()
 
@@ -137,14 +139,18 @@ if __name__ == '__main__':
         files = glob.glob(args.pattern)
         print('found %i files' % len(files))
         file_idx = list(range(len(files)))
+        np.random.seed(seed=42)
         np.random.shuffle(file_idx)
 
-        split = int(len(file_idx) * 0.9)
+        split_train = int(len(file_idx) * 0.9)
+        split_val = (len(files) - split_train) // 2
+        split_test = len(files) - split_train - split_val
 
-        train_idx = file_idx[:split]
-        validate_idx = file_idx[split:]
+        train_idx = file_idx[:split_train]
+        validate_idx = file_idx[split_train:split_train + split_val]
+        test_idx = file_idx[split_train + split_val:]
 
-        print('use %i/%i split' % (len(train_idx), len(validate_idx)))
+        print('use %i/%i/%i split' % (len(train_idx), len(validate_idx), len(test_idx)))
 
         # train data
         df = GoGamesFromDir([files[i] for i in train_idx])
@@ -153,9 +159,14 @@ if __name__ == '__main__':
         df = GoGamesFromDir([files[i] for i in validate_idx])
         dftools.dump_dataflow_to_lmdb(df, args.lmdb + 'go_val.lmdb')
 
+        df = GoGamesFromDir([files[i] for i in test_idx])
+        dftools.dump_dataflow_to_lmdb(df, args.lmdb + 'go_test.lmdb')
+
     if args.action == 'benchmark':
         df = LMDBDataPoint(args.lmdb, shuffle=False)
+        df = PrefetchData(df, 5000, 1)
         df = GameDecoder(df)
+        df = PrefetchDataZMQ(df, min(20, multiprocessing.cpu_count()))
         df.reset_state()
         TestDataSpeed(df, size=50000).start_test()
 

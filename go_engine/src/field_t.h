@@ -4,6 +4,7 @@
 #define FIELD_T_H
 
 #include <iostream>
+#include <memory>
 
 #include "token_t.h"
 
@@ -24,7 +25,7 @@ class field_t {
 
     friend std::ostream& operator<< (std::ostream& stream, const field_t& stone);
 
-    group_t *group;
+    group_t* group;
     int played_at;
 
   private:
