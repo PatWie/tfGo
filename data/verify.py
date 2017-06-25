@@ -25,6 +25,7 @@ def get_gnugo_board(fn, until=None):
         (np.aray, np.aray): board white, black
     """
     if until is not None:
+        print('[gnugo] play %i moves' % until)
         until = ['-L', str(until)]
     else:
         until = []
@@ -69,7 +70,7 @@ def get_gnugo_board(fn, until=None):
     return ans
 
 
-def print_board(white, black):
+def print_board(white, black=None):
     """Produce GnuGO like output to verify board position.
 
     Args:
@@ -79,8 +80,20 @@ def print_board(white, black):
     Returns:
         str: gnugo like output (without legend)
     """
+
+    if black is None:
+        n = np.copy(white)
+        white = n < 0
+        black = n > 0
+
     s = ''
+    charset = "ABCDEFGHJKLMNOPQRST"
+    s += '   '
     for x in xrange(19):
+        s = s + charset[x] + ' '
+    s += '\n'
+    for x in xrange(19):
+        s += '%02i ' % x
         for y in xrange(19):
             if white[x][y] == 1:
                 s += '0 '
@@ -88,7 +101,13 @@ def print_board(white, black):
                 s += 'X '
             else:
                 s += '. '
+        s += ' %02i' % x
         s += '\n'
+    charset = "ABCDEFGHJKLMNOPQRST"
+    s += '   '
+    for x in xrange(19):
+        s = s + charset[x] + ' '
+    s += '\n'
     return s
 
 
@@ -108,10 +127,14 @@ def get_own_board(fn, until=None):
         (np.array, np.array): all placed white tokens, all placed black tokens
     """
     max_moves = os.path.getsize(fn + 'bin') / 2
+    print('[own] has %i moves' % max_moves)
     planes = np.zeros((47, 19, 19), dtype=np.int32)
     if until is not None:
-        max_moves = max(0, until - 1)
-    goplanes.planes_from_file(fn + 'bin', planes, max_moves)
+        until = max(0, until + 2)
+    else:
+        until = -1
+    print('[own] play %i moves' % until)
+    goplanes.planes_from_file(fn + 'bin', planes, until)
 
     from_black = (planes[-1][0][0] == 1)
     if from_black:
@@ -125,17 +148,22 @@ def get_own_board(fn, until=None):
 
 
 for fn in glob.glob('/home/patwie/godb/Database/*/*.sgf'):
+# for fn in glob.glob('/home/patwie/godb/Database/1998/1998-03-09d.sgf'):
+# for fn in glob.glob('/home/patwie/godb/Database/1998/1998-01-09k.sgf'):
 
     # filter not converted games (like incorrect and amateur)
     if not os.path.isfile(fn):
         continue
     if not os.path.isfile(fn + 'bin'):
         continue
-
-    moves = None
+    print fn
+    moves = None  # means all
+    # moves = 50
+    # moves = os.path.getsize(fn + 'bin') / 2
     expected_w, expected_b = get_gnugo_board(fn, moves)
     actual_w, actual_b = get_own_board(fn, moves)
 
+    # if True:
     if (expected_w - actual_w).sum() > 0 or (expected_b - actual_b).sum() > 0:
         # there is a difference between GnuGO and GoPlanes
         print fn
@@ -144,6 +172,6 @@ for fn in glob.glob('/home/patwie/godb/Database/*/*.sgf'):
         print (expected_w - actual_w).sum()
         print (expected_b - actual_b).sum()
 
-        print (expected_w - actual_w)
-        print (expected_b - actual_b)
+        print print_board(expected_w - actual_w)
+        print print_board(expected_b - actual_b)
         raw_input("prompt")

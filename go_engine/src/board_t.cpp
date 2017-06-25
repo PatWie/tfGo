@@ -110,7 +110,15 @@ bool board_t::is_ladder_capture(int x, int y, token_t hunter, int recursion_dept
 
     if((fx==-1) && (fy==-1)){
         // not a particular group focus
+        const auto neighbors = neighbor_fields(x, y);
+        for(auto &&n : neighbors){
+
+        }
+    }else{
+        // only focus on group of (fx, fy)
     }
+
+
 
 }
 
@@ -154,10 +162,17 @@ int board_t::set(int x, int y, token_t tok) {
     return 0;
 }
 
-std::vector<std::pair<int, int> > board_t::neighbors(int x, int y){
+ const std::vector<std::pair<int, int> > board_t::neighbor_fields(int x, int y) const {
     std::vector<std::pair<int, int> > n;
     if(valid_pos(x - 1))
         n.push_back({x - 1, y});
+    if(valid_pos(x + 1))
+        n.push_back({x + 1, y});
+    if(valid_pos(y - 1))
+        n.push_back({x, y - 1});
+    if(valid_pos(y + 1))
+        n.push_back({x, y + 1});
+    return n;
 }
 
 /**
@@ -172,38 +187,9 @@ void board_t::update_groups(int x, int y) {
     token_t current = fields[x][y].token();
     field_t& current_stone = fields[x][y];
 
-    if (valid_pos(x - 1)) {
-        field_t& other_stone = fields[x - 1][y];
-        if (other_stone.token() == current) {
-            if (current_stone.group == nullptr)
-                other_stone.group->add(&current_stone);
-            else
-                current_stone.group->merge(other_stone.group);
-        }
-    }
-
-    if (valid_pos(y - 1)) {
-        field_t& other_stone = fields[x][y - 1];
-        if (other_stone.token() == current) {
-            if (current_stone.group == nullptr)
-                other_stone.group->add(&current_stone);
-            else
-                current_stone.group->merge(other_stone.group);
-        }
-    }
-
-    if (valid_pos(x + 1)) {
-        field_t& other_stone = fields[x + 1][y];
-        if (other_stone.token() == current) {
-            if (current_stone.group == nullptr)
-                other_stone.group->add(&current_stone);
-            else
-                current_stone.group->merge(other_stone.group);
-        }
-    }
-
-    if (valid_pos(y + 1)) {
-        field_t& other_stone = fields[x][y + 1];
+    const auto neighbors = neighbor_fields(x, y);
+    for(auto &&n : neighbors){
+        field_t& other_stone = fields[n.first][n.second];
         if (other_stone.token() == current) {
             if (current_stone.group == nullptr)
                 other_stone.group->add(&current_stone);
@@ -252,8 +238,8 @@ bool board_t::is_legal(int x, int y, token_t tok) const {
     board_t* copy = clone();
     copy->fields[x][y].token(tok);
     copy->update_groups(x, y);
-    copy->count_and_remove_captured_stones(x, y, tok);
     copy->count_and_remove_captured_stones(x, y, opponent(tok));
+    copy->count_and_remove_captured_stones(x, y, tok);
     bool self_atari = (copy->liberties(x, y) == 0);
     // bool self_atari = (copy->fields[x][y].group->liberties(copy) == 0);
     delete copy;
@@ -278,43 +264,17 @@ int board_t::estimate_captured_stones(int x, int y, token_t color_place, token_t
 int board_t::count_and_remove_captured_stones(int x, int y, token_t focus) {
     int scores = 0;
 
-    // does any opponent neighbor-group has no liberties?
-    if (valid_pos(x - 1)) {
-        field_t& other_stone = fields[x - 1][y];
+    const auto neighbors = neighbor_fields(x, y);
+    for(auto &&n : neighbors){
+        field_t& other_stone = fields[n.first][n.second];
         if (other_stone.token() == focus)
-            if (liberties(x - 1, y) == 0){
+            if (liberties(n.first, n.second) == 0){
                 const int gid = other_stone.group->id;
                 scores += other_stone.group->kill();
                 groups.erase(gid);
             }
     }
-    if (valid_pos(y - 1)) {
-        field_t& other_stone = fields[x][y - 1];
-        if (other_stone.token() == focus)
-            if (liberties(x, y - 1) == 0){
-                const int gid = other_stone.group->id;
-                scores += other_stone.group->kill();
-                groups.erase(gid);
-            }
-    }
-    if (valid_pos(x + 1)) {
-        field_t& other_stone = fields[x + 1][y];
-        if (other_stone.token() == focus)
-            if (liberties(x + 1, y) == 0){
-                const int gid = other_stone.group->id;
-                scores += other_stone.group->kill();
-                groups.erase(gid);
-            }
-    }
-    if (valid_pos(y + 1)) {
-        field_t& other_stone = fields[x][y + 1];
-        if (other_stone.token() == focus)
-            if (liberties(x, y + 1) == 0){
-                const int gid = other_stone.group->id;
-                scores += other_stone.group->kill();
-                groups.erase(gid);
-            }
-    }
+
     return scores;
 }
 

@@ -30,24 +30,27 @@ void SGFbin::debug(unsigned int step) {
            &x, &y, 
            &is_white, &is_move, &is_pass);
 
+    char *charset = "ABCDEFGHJKLMNOPQRST";
+    char *charset2 = "abcdefghijklmnopqrs";
+
     if(is_white){
         if(is_move){
-            printf("W %i %i\n", x, y);
+            printf("W %c%c %c%c (%i, %i)\n", charset[x], charset[y],  charset2[x], charset2[y], x, y);
         }else{
             if(is_pass){
                 printf("W tt\n");
             }else{
-                printf("AW %i %i\n", x, y);
+                printf("AW %c%c %c%c (%i, %i)\n", charset[x], charset[y],  charset2[x], charset2[y], x, y);
             }
         }
     }else{
         if(is_move){
-            printf("B %i %i\n", x, y);
+            printf("B %c%c %c%c (%i, %i)\n", charset[x], charset[y],  charset2[x], charset2[y], x, y);
         }else{
             if(is_pass){
                 printf("B tt\n");
             }else{
-                printf("AB %i %i\n", x, y);
+                printf("AB %c%c %c%c (%i, %i)\n", charset[x], charset[y],  charset2[x], charset2[y], x, y);
             }
         }
     }

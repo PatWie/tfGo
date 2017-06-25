@@ -119,7 +119,16 @@ class board_t {
      */
     board_t* clone() const ;
 
-    std::vector<std::pair<int, int> > neighbors(int x, int y);
+    /**
+     * @brief get neighboring fields
+     * @details hopefully the compiler can optimize this
+     * 
+     * @param x anchor x
+     * @param y anchor y
+     * 
+     * @return list of (x, y) pairs
+     */
+     const std::vector<std::pair<int, int> > neighbor_fields(int x, int y)  const;
 
     bool is_ladder_capture(int x, int y, token_t hunter, int recursion_depth=50, int fx=-1, int fy=-1) const;
 

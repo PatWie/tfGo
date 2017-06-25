@@ -10,7 +10,7 @@
 
 
 
-int play_game(SGFbin *Game, int* data, int moves) {
+int play_game(SGFbin *Game, int* data, const int moves) {
 
     // board representation
     board_t b;
@@ -38,7 +38,11 @@ int play_game(SGFbin *Game, int* data, int moves) {
 
 
     // run game for at least 'moves' moves but stop early enough such that a last move remains open
-    int evaluate_until = std::min(moves + offset, (int)Game->num_actions() - 2);
+    int evaluate_until = std::min(offset + moves, (int)Game->num_actions() - 1);
+
+    // really all moves?
+    if(moves == -1)
+        evaluate_until = Game->num_actions();
 
     for (; offset < evaluate_until; offset++) {
         // parse move
@@ -60,6 +64,9 @@ int play_game(SGFbin *Game, int* data, int moves) {
     // given the current situation, we switch to the view of the opponent (the play who's turn it is)
     b.feature_planes(data, opponent_player);
 
+    // all moves are evaluated nothing to do
+    if(moves == -1)
+        return 0;
     // parse a next move (the ground-truth)
     Game->parse(evaluate_until, &x, &y, &is_white, &is_move, &is_pass);
     const int next_move = 19 * y + x;
@@ -78,7 +85,9 @@ int play_game(SGFbin *Game, int* data, int moves) {
  * @param moves number of moves in match to the current position
  * @return next move on board
  */
-int planes_from_file(char *str, int strlen, int* data, int dc, int dh, int dw, int moves) {
+int planes_from_file(char *str, int strlen,
+                     int* data, int dc, int dh, int dw,
+                     int moves) {
     // load game
     std::string path = std::string(str);
     SGFbin Game(path);
