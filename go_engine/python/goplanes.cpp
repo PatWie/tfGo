@@ -133,10 +133,10 @@ void planes_from_position(int* bwhite, int wm, int wn,
     {
         for (int y = 0; y < 19; ++y)
         {
-            if (bwhite[19 * x + y] == 1) {
+            if (bwhite[19 * y + x] == 1) {
                 b.play(x, y, white);
             }
-            if (bblack[19 * x + y] == 1) {
+            if (bblack[19 * y + x] == 1) {
                 b.play(x, y, black);
             }
         }
