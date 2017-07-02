@@ -4,16 +4,17 @@
 #define ENGINE_GROUP_T_H
 
 #include <vector>
+#include <set>
 #include <memory>
 
-
+#include "token_t.h"
 
 class field_t;
 class board_t;
 
 class group_t {
   public:
-    group_t(int groupid);
+    group_t(int groupid, const board_t const * board);
     ~group_t();
 
     void add(field_t *s);
@@ -26,10 +27,12 @@ class group_t {
 
     // count liberties (see below)
     // TODO: cache result (key should be iteration in game)
-    int liberties(const board_t* const b)  const;
+    int liberties()  const;
+    const std::set<std::pair<int, int> > neighbors(const token_t filter)  const;
 
     // collection of pointers to stones
     std::vector<field_t *> stones;
+    const board_t const * board;
     int id;
 };
 

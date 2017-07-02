@@ -154,7 +154,6 @@ void planes_from_position(int* bwhite, int wm, int wn,
     {
         for (int y = 0; y < 19; ++y)
         {
-            //////////////////////// TODOOOOOOOOOOOOOo
             if (bwhite[19 * x + y] == 1) {
                 b.play(x, y, white);
             }

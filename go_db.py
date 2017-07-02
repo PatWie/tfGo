@@ -211,11 +211,11 @@ if __name__ == '__main__':
             y = next_move // 19
 
             bboard = np.zeros((19, 19), dtype=str)
-            bboard[planes[0, :, :] == 1] = 'x'
-            bboard[planes[1, :, :] == 1] = '!'
-            bboard[planes[2, :, :] == 1] = '.'
+            bboard[planes[0, :, :] == 1] = 'x'  # own stones
+            bboard[planes[1, :, :] == 1] = '!'  # opponent stones
+            bboard[planes[2, :, :] == 1] = '.'  # empty fields
 
-            bboard[x, y] = '$'
+            bboard[x, y] = '$'  # next move (new own stone)
 
             for i in range(19):
                 print " ".join(bboard[i, :])
@@ -224,7 +224,7 @@ if __name__ == '__main__':
 
     if args.action == 'debug2':
         df = LMDBDataPoint(args.lmdb, shuffle=False)
-        df = GameDecoder(df, random_move=False, until=82)
+        df = GameDecoder(df, random_move=False, until=81)
         df = DihedralGroup(df)
         df.reset_state()
 
@@ -246,11 +246,13 @@ if __name__ == '__main__':
                 planes = D4_planes[version * 47:version * 47 + 48]
 
                 bboard = np.zeros((19, 19), dtype=str)
-                bboard[planes[0, :, :] == 1] = 'x'
-                bboard[planes[1, :, :] == 1] = '!'
-                bboard[planes[2, :, :] == 1] = '.'
+                bboard[planes[0, :, :] == 1] = 'x'  # own stones
+                bboard[planes[1, :, :] == 1] = '!'  # opponent stones
+                bboard[planes[2, :, :] == 1] = '.'  # empty fields
 
-                bboard[x, y] = '$'
+                bboard[x, y] = '$'  # next move (new own stone)
 
                 for i in range(19):
                     print " ".join(bboard[i, :])
+
+                print D4_next_move_as_plane[version]

@@ -4,30 +4,37 @@
 
         (2, 4) --> (15, C)
 
-B<<    A B C D E F G H J K L M N O P Q R S T
-B<< 19 . . . . . . . . . . . . . . . . . . X 19
-B<< 18 . . X X X . . . . . . . . . X . . . . 18
-B<< 17 . . O O . . . . . . . . . . . X . . . 17
-B<< 16 . . . + . . . . . + . . . . . + . . . 16
-B<< 15 . . . . . . . . . . . . . . . X . . . 15
-B<< 14 . . O . . . . . . . . . . . . . . . . 14
-B<< 13 . . . . . . . . . . . . . . . . . . . 13
-B<< 12 . . . . . . . . . . . . . . . . X . . 12
-B<< 11 . . . . . . . . . . . . . . . . . . . 11     WHITE (O) has captured 0 stones
-B<< 10 . . . O . . . . . + . . . . . + . . . 10     BLACK (X) has captured 0 stones
-B<<  9 . . . . . . . . . . . . . . . . . . . 9
-B<<  8 . . . . . . . . . . . . . . . . . . . 8
-B<<  7 . . . . . . . . . . . . . . . . . . . 7
-B<<  6 . . . . . . . . . . . . . . . . . . . 6
-B<<  5 . . . . . . . . . . . . . . . . . . . 5
-B<<  4 . . . + . . . O . + . O . . . + . . . 4
-B<<  3 . . . O . . . . . . . . . . . O . . . 3
-B<<  2 . . . . . . . . . . . . . . . . . . . 2
-B<<  1 . . . . . . . . . . . . . . . . . . . 1
-B<<    A B C D E F G H J K L M N O P Q R S T
+cout < board << endl;
+
+------ START internal representation ------------------
+   A B C D E F G H J K L M N O P Q R S T 
+19 . . . . . . . . . . . . . . . . . . . 19 
+18 . . . . . . . . . . . . . . . . . . . 18 
+17 . . . . . . . . . . . . . . . . . . . 17 
+16 . . . + . . . . . + . . x . . + . . . 16 
+15 . . . o . . . . . . . . o x . . . . . 15 
+14 . . . . . . . . . . . . . . . . . . . 14 
+13 . . . . . . . . . . . . . . . . . . . 13 
+12 . . . . . . . . . . . . . . . . . . . 12 
+11 . . . . . . . . . . . . . . . . . . . 11 
+10 . . . + . . . . . + . . . . . + . . . 10 
+ 9 . . . . . . . . . . . . . . . . . . .  9 
+ 8 . . . . . . . . . . . . . . . . . . .  8 
+ 7 . . . . . . . . . . . . . . . . . . .  7 
+ 6 . . . . . . . . . . . . . . . . . . .  6 
+ 5 . . . . . . . . . . . . . . . . . . .  5 
+ 4 . . . + . . . . . + . . . . . + . . .  4 
+ 3 . . . . . . . . . . . . . . . . . . .  3 
+ 2 . . . . . . . . . . . . . . . . . . .  2 
+ 1 . . . . . . . . . . . . . . . . . . .  1 
+   A B C D E F G H J K L M N O P Q R S T
+------ END internal representation ------------------
+
 
 
 */
+
+
 
 #include <set>
 #include <map>
@@ -38,13 +45,28 @@ B<<    A B C D E F G H J K L M N O P Q R S T
 #include "board_t.h"
 
 
+void ident(int depth){
+    for (int i = 0; i < depth; ++i)
+    {
+        std::cout << "  ";
+          
+    }
+}
+
+
 board_t::board_t() : score_black(0.f), score_white(0.f), played_moves(0) {
     // tell each field its coordinate
-    for (int h = 0; h < N; ++h)
-        for (int w = 0; w < N; ++w)
-            fields[h][w].pos(h, w);
+    for (int h = 0; h < N; ++h){
+
+        std::vector<field_t> row;
+        for (int w = 0; w < N; ++w){
+            row.push_back(field_t(h, w, this));
+        }
+        fields.push_back(row);
+    }
     // set counter for group-ids
     groupid = 0;
+    current_player = black;
 }
 
 board_t::~board_t() {
@@ -58,18 +80,33 @@ std::ostream& operator<< (std::ostream& stream, const board_t& b) {
 
 
     stream << "------ START internal representation ------------------" << std::endl;
+    stream << std::endl;
+    stream << "            WHITE (O) vs BLACK (X) " << std::endl;
+    stream << std::endl;
     const char *charset = "ABCDEFGHJKLMNOPQRST";
+    stream << "x  ";
+    for (int w = 0; w < N; ++w){
+        if(w<10)
+            stream << w << " ";
+        else
+            stream << (w % 10) << " ";
 
+        
+    }
+    stream << std::endl;
+    stream << std::endl;
+        
     stream << "   ";
     for (int w = 0; w < N; ++w)
         stream << charset[w] << " ";
-    stream << std::endl;
+    stream << "   " << "    y " << std::endl;
     
     for (int h = 0; h < N; ++h) {
         stream << std::setw(2) << (19 - h)  << " ";
         for (int w = 0; w < N; ++w)
             stream  << b.fields[h][w] << " ";
         stream << std::setw(2) << (19 - h)  << " ";
+        stream << "   " << std::setw(2) << (h)  << " ";
         stream << std::endl;
     }
     stream << "  ";
@@ -88,7 +125,7 @@ group_t* board_t::find_or_create_group(int id){
         return groups_iter->second;
     }
     else{
-        groups[id] = new group_t(id);
+        groups[id] = new group_t(id, this);
         return groups[id];
     }
 }
@@ -115,64 +152,177 @@ board_t* board_t::clone() const {
             }
             
         }
+    dest->current_player = current_player;
     return dest;
 }
 
 
 
+int board_t::play(std::pair<int, int> pos, token_t tok) {
+    return play(pos.first, pos.second, tok);
+}
 int board_t::play(int x, int y, token_t tok) {
     int r = set(x, y, tok);
     if (r == -1) return -1;
+    current_player = opponent(current_player);
     return 0;
 }
 
-bool board_t::is_ladder_capture(int x, int y,
-                                token_t hunter, token_t current,
-                                int recursion_depth, int fx, int fy) const{
-    // does placing a token at (x,y) from hunter would capture a group?
-    // we focus on the group in fx, fy
-    const token_t victim = opponent(hunter);
+const field_t const * board_t::field(std::pair<int, int> pos) const{
+    return (const field_t const*) &fields[pos.first][pos.second];
+}
 
-    if(!is_legal(x,y, hunter)){
-        // nope not here
+bool board_t::is_forced_ladder_escape(std::pair<int, int> escape_effort_field,
+                               token_t hunter_player,
+                               int recursion_depth,
+                               group_t* focus){
+
+    // too many recursion
+    if(recursion_depth > 50)
         return false;
-    }
-    if(recursion_depth == 0){
-        // haven't found anything, so this might not be a ladder capture
+
+    // the victim player always tries to escape
+    const token_t victim_player = opponent(hunter_player);
+
+    // escape route is illegal
+    if(!is_legal(escape_effort_field, current_player))
         return false;
+    
+    // these groups might help to escape from the current threat
+    std::set<group_t *> group_to_check;
+
+    if(focus == nullptr){
+        // try to find all groups which belong to a ladder
+        auto neighbor_groups_stones = neighbor_fields(escape_effort_field);
+        for(auto &&possible_ladder_stones : neighbor_groups_stones){
+            if(field(possible_ladder_stones)->token() == victim_player)
+                if(field(possible_ladder_stones)->group->liberties() == 1){
+                    group_to_check.insert(field(possible_ladder_stones)->group);
+                }
+        }
+    }else{
+        group_to_check.insert(focus);
     }
 
-    std::vector<std::pair<int, int> > possible_group_victims;
+    // we now have all groups in place
+    for(auto &&current_check_group_ : group_to_check){
 
-    if((fx==-1) && (fy==-1)){
-        // not a particular group focus
-        const auto neighbors = neighbor_fields(x, y);
-        for(auto &&n : neighbors){
-            const field_t& other_stone = fields[n.first][n.second];
-            if(other_stone.token() == victim){
-                // we could capture that stone
-                if(liberties(n.first, n.second) == 2){
-                    // it is more likely that we capture that stone
-                    possible_group_victims.push_back({n.first, n.second});
+        board_t* tmp = clone();
+        tmp->play(escape_effort_field, victim_player);
+
+        auto current_check_group = tmp->field(current_check_group_->stones[0]->pos())->group;
+
+        // we escaped
+        if(current_check_group->liberties() >= 3){
+            delete tmp;
+            return true;
+        }
+
+        // not good, try next group
+        if(current_check_group->liberties() == 1){
+            delete tmp;
+            continue;
+        }
+ 
+        // only two liberties are left ...
+        auto remaining_liberty_fields = current_check_group->neighbors(empty);
+
+        bool any_is_capture = false;
+        for(auto && next_move: remaining_liberty_fields){
+            
+            if(tmp->is_forced_ladder_capture(next_move, hunter_player, recursion_depth + 1,
+                                             current_check_group)){
+                any_is_capture = true;
+                break;
+            }
+            
+        }
+        if(any_is_capture){
+            delete tmp;
+            continue;
+        }
+
+        delete tmp;
+        return true;
+    }
+
+    return false;
+
+}
+
+
+bool board_t::is_forced_ladder_capture(std::pair<int, int> capture_effort,
+                                token_t hunter_player,
+                                int recursion_depth, group_t* focus) const{
+
+    const token_t victim_player = opponent(hunter_player);
+
+
+    // illegal moves are never ladder-captures
+    if(!is_legal(capture_effort, hunter_player))
+        return false;
+
+    // timeout
+    if(recursion_depth > 50)
+        return false;
+
+   
+     // collect all fields that might be a victim_player of a ladder capture
+    std::set<group_t *> group_to_check;
+
+    // called with default args (no particular focus?)
+    if(focus == nullptr){
+        auto neighbor_groups_stones = neighbor_fields(capture_effort);
+        for(auto &&stone : neighbor_groups_stones){
+            if(field(stone)->token() == victim_player)
+                if(field(stone)->group->liberties() == 2){
+                    group_to_check.insert(field(stone)->group);
+                }
+        }
+
+    }else{
+        group_to_check.insert(focus);
+    }
+
+    // loop over all victim_player fields
+    for(auto &&potential_ladder_capture_group_ : group_to_check){
+        board_t* tmp = clone();
+        tmp->play(capture_effort, hunter_player);
+
+        auto potential_ladder_capture_group = tmp->field(potential_ladder_capture_group_->stones[0]->pos())->group;
+
+
+        auto possible_escapes = potential_ladder_capture_group->neighbors(empty);
+
+        for(auto &&possible_escape: possible_escapes){
+
+            for(auto &&hunter_group : field(possible_escape)->neighbors(hunter_player)){
+                if(field(hunter_group)->group->liberties() == 1){
+                    possible_escapes.insert(possible_escape);
                 }
             }
         }
-    }else{
-        // only focus on group of (fx, fy)
-        possible_group_victims.push_back({fx, fy});
+
+        /*for (capture_effort_x, escape_y) in possible_escape_routes:*/
+        bool not_a_single_escape = true;
+        for(auto &&next_move : possible_escapes){
+            if(!tmp->is_forced_ladder_escape(next_move, hunter_player, recursion_depth + 1,
+                                             potential_ladder_capture_group)){
+                not_a_single_escape = false;
+            }
+        }
+
+        if(not_a_single_escape){
+            delete tmp;
+            return true;
+        }
+
+        
+
+        delete tmp;
     }
 
-    for(auto &&pos : possible_group_victims){
-        board_t* copy = clone();
-        copy->play(x, y, current);
-
-        // TODO ....
-
-        delete copy;
-    }
-
-
-
+    return false;
 }
 
 
@@ -214,7 +364,9 @@ int board_t::set(int x, int y, token_t tok) {
     }
     return 0;
 }
-
+ const std::vector<std::pair<int, int> > board_t::neighbor_fields(std::pair<int, int> pos) const {
+    return neighbor_fields(pos.first, pos.second);
+ }
  const std::vector<std::pair<int, int> > board_t::neighbor_fields(int x, int y) const {
     std::vector<std::pair<int, int> > n;
     if(valid_pos(x - 1))
@@ -263,6 +415,9 @@ const token_t board_t::opponent(token_t tok) const {
     return (tok == white) ? black : white;
 }
 
+bool board_t::is_legal(std::pair<int, int> pos, token_t tok) const {
+    return is_legal(pos.first, pos.second, tok);
+}
 bool board_t::is_legal(int x, int y, token_t tok) const {
     // position has already a stone ?
     if (fields[x][y].token() != empty)
@@ -332,11 +487,14 @@ int board_t::count_and_remove_captured_stones(int x, int y, token_t focus) {
 }
 
 // int board_t::liberties(const field_t field) const{
+int board_t::liberties(std::pair<int, int> pos) const{
+    return liberties(pos.first, pos.second);
+}
 int board_t::liberties(int x, int y) const{
     if(fields[x][y].token() == empty)
         return 0;
     else
-        return fields[x][y].group->liberties(this);
+        return fields[x][y].group->liberties();
 
 }
 
@@ -496,7 +654,7 @@ void board_t::feature_planes(int *planes, token_t self) const {
 
             // Sensibleness : 1 : Whether a move is legal and does not fill its own eyes
             // TODO legacy !is_legal
-            if (!is_legal(h, w, self)) {
+            if (is_legal(h, w, self)) {
                 planes[map3line(44, h, w)] = 1;
             }
 

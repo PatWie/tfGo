@@ -7,7 +7,7 @@ sys.path.insert(0, "../go_engine/python/")  # noqa
 from gnugo_engine import GnuGoEngine
 import goplanes
 
-until = 82
+until = 81
 next_is_white = (until % 2 == 0)
 
 if next_is_white:
@@ -76,6 +76,12 @@ else:
     print "situation for black"
 
 print "next move", next_move, x, y, tuple2string((x, y))
+
+for i in [0, 1, 2, 3] + range(12, 28) + range(20, 28) + [44]:
+    print "diff (gnugo vs. tfgo) in plane %i:" % i, np.sum(gnugo_planes[i, :, :] - tfgo_planes_from_position[i, :, :])
+
+print "legal moves"
+print tfgo_planes_from_position[44, :, :]
 
 # def get_gnugo_board(fn, until=None):
 #     """Use GnuGO to compute final board of game.

@@ -40,6 +40,7 @@ class board_t {
      * @return 0 if success
      */
     int play(int x, int y, token_t tok);
+    int play(std::pair<int, int> pos, token_t tok);
 
 
     int set(int x, int y, token_t tok);
@@ -67,7 +68,10 @@ class board_t {
      * @param tok checking for token color of tok
      * @return valid?
      */
+    bool is_legal(std::pair<int, int> pos, token_t tok) const ;
     bool is_legal(int x, int y, token_t tok) const ;
+
+    const field_t const * field(std::pair<int, int> pos) const;
 
     /**
      * @brief place token and count effect of captured stones
@@ -110,6 +114,7 @@ class board_t {
      * 
      * @return [description]
      */
+    int liberties(std::pair<int, int> pos) const;
     int liberties(int x, int y) const;
 
     /**
@@ -129,15 +134,25 @@ class board_t {
      * @return list of (x, y) pairs
      */
      const std::vector<std::pair<int, int> > neighbor_fields(int x, int y)  const;
+     const std::vector<std::pair<int, int> > neighbor_fields(std::pair<int, int> pos)  const;
 
-    bool is_ladder_capture(int x, int y,
-                           token_t hunter, token_t current,
-                           int recursion_depth, int fx, int fy) const;
+    bool is_forced_ladder_escape(std::pair<int, int> action,
+                           token_t hunter,
+                           int remaining_attempts=0,
+                           group_t* focus=nullptr);
+
+    bool is_forced_ladder_capture(std::pair<int, int> capture_effort,
+                           token_t hunter,
+                           int recursion_depth=0, group_t* focus=nullptr) const;
 
 
-    std::array<std::array<field_t, N>, N> fields;
+    std::vector<std::vector<field_t> > fields;
+
     std::map<int, group_t*> groups;
     std::map<int, group_t*>::iterator groups_iter;
+
+    // just for recursion
+    token_t current_player;
 
     int groupid;
     int played_moves = 0;
