@@ -132,7 +132,7 @@ class SGFReader(object):
                       'AN', 'BR', 'BT', 'CP', 'DT', 'EV', 'GN', 'GC', 'ON', 'OT', 'PB', 'PC', 'PW', 'RE', 'RO', 'RU', 'SO', 'TM', 'US', 'WR', 'WT',  # noqa
                       'BL', 'OB', 'OW', 'WL',
                       'FG', 'PM', 'VW',
-                      'KM', 'OH', 'HA', 'MULTIGOGM']
+                      'KM', 'OH', 'HA', 'MULTIGOGM', 'BC', 'WC']
         # I do not the keys from the last row and didn't find any information on the internet.
         # But they are in the data.
 

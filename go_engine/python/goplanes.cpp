@@ -12,6 +12,10 @@
 
 int play_game(SGFbin *Game, int* data, const int moves) {
 
+    // GNUgo means: 0 -- all moves
+    // GNUgo means: 1 -- empty board
+    // GNUgo means: 2 -- first move (black)
+
     // board representation
     board_t b;
 
@@ -32,31 +36,41 @@ int play_game(SGFbin *Game, int* data, const int moves) {
         offset++;
         current_player = is_white ? white : black;
         opponent_player = is_white ? black : white;
-        b.set(x, y, current_player);
+
+        // convert to GNUgo representation
+        int xx = 0, yy = 0;
+        xx = y;
+        yy = x;
+
+        b.set(xx, yy, current_player);
         Game->parse(offset, &x, &y, &is_white, &is_move, &is_pass);
     }
 
-
     // run game for at least 'moves' moves but stop early enough such that a last move remains open
-    int evaluate_until = std::min(offset + moves, (int)Game->num_actions() - 1);
+    int evaluate_until = std::min(offset + moves - 1, (int)Game->num_actions() - 1);
 
     // really all moves?
-    if(moves == -1)
+    if(moves == 0)
         evaluate_until = Game->num_actions();
 
     for (; offset < evaluate_until; offset++) {
         // parse move
         Game->parse(offset, &x, &y, &is_white, &is_move, &is_pass);
-        // Game->debug(offset);
+        Game->debug(offset);
 
         current_player = is_white ? white : black;
         opponent_player = is_white ? black : white;
 
+        // convert to GNUgo representation
+        int xx = 0, yy = 0;
+        xx = y;
+        yy = x;
+
         if (!is_pass) {
             if (is_move) {
-                b.play(x, y, current_player);
+                b.play(xx, yy, current_player);
             } else {
-                b.set(x, y, current_player);
+                b.set(xx, yy, current_player);
             }
         }
     }
@@ -65,11 +79,16 @@ int play_game(SGFbin *Game, int* data, const int moves) {
     b.feature_planes(data, opponent_player);
 
     // all moves are evaluated nothing to do
-    if(moves == -1)
+    if(moves == 0)
         return 0;
     // parse a next move (the ground-truth)
     Game->parse(evaluate_until, &x, &y, &is_white, &is_move, &is_pass);
-    const int next_move = 19 * y + x;
+    int xx = 0, yy = 0;
+    xx = y;
+    yy = x;
+    std::cout << "next move << "<< xx << " : "<< yy << std::endl;
+    Game->debug(evaluate_until);
+    const int next_move = 19 * yy + xx;
     return next_move;
 }
 
@@ -111,7 +130,9 @@ int planes_from_file(char *str, int strlen,
  * @param moves number of moves in match to the current position
  * @return next move on board (this is "a")
  */
-int planes_from_bytes(char *bytes, int byteslen, int* data, int dc, int dh, int dw, int moves) {
+int planes_from_bytes(char *bytes, int byteslen, 
+                      int* data, int dc, int dh, int dw,
+                      int moves) {
     // the SGFbin parser
     SGFbin Game((unsigned char*) bytes, byteslen);
     return play_game(&Game, data, moves);
@@ -133,10 +154,11 @@ void planes_from_position(int* bwhite, int wm, int wn,
     {
         for (int y = 0; y < 19; ++y)
         {
-            if (bwhite[19 * y + x] == 1) {
+            //////////////////////// TODOOOOOOOOOOOOOo
+            if (bwhite[19 * x + y] == 1) {
                 b.play(x, y, white);
             }
-            if (bblack[19 * y + x] == 1) {
+            if (bblack[19 * x + y] == 1) {
                 b.play(x, y, black);
             }
         }

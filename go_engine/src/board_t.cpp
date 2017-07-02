@@ -1,5 +1,34 @@
 // Author: Patrick Wieschollek <mail@patwie.com>
 
+/* We use the GNUgo representation and map
+
+        (2, 4) --> (15, C)
+
+B<<    A B C D E F G H J K L M N O P Q R S T
+B<< 19 . . . . . . . . . . . . . . . . . . X 19
+B<< 18 . . X X X . . . . . . . . . X . . . . 18
+B<< 17 . . O O . . . . . . . . . . . X . . . 17
+B<< 16 . . . + . . . . . + . . . . . + . . . 16
+B<< 15 . . . . . . . . . . . . . . . X . . . 15
+B<< 14 . . O . . . . . . . . . . . . . . . . 14
+B<< 13 . . . . . . . . . . . . . . . . . . . 13
+B<< 12 . . . . . . . . . . . . . . . . X . . 12
+B<< 11 . . . . . . . . . . . . . . . . . . . 11     WHITE (O) has captured 0 stones
+B<< 10 . . . O . . . . . + . . . . . + . . . 10     BLACK (X) has captured 0 stones
+B<<  9 . . . . . . . . . . . . . . . . . . . 9
+B<<  8 . . . . . . . . . . . . . . . . . . . 8
+B<<  7 . . . . . . . . . . . . . . . . . . . 7
+B<<  6 . . . . . . . . . . . . . . . . . . . 6
+B<<  5 . . . . . . . . . . . . . . . . . . . 5
+B<<  4 . . . + . . . O . + . O . . . + . . . 4
+B<<  3 . . . O . . . . . . . . . . . O . . . 3
+B<<  2 . . . . . . . . . . . . . . . . . . . 2
+B<<  1 . . . . . . . . . . . . . . . . . . . 1
+B<<    A B C D E F G H J K L M N O P Q R S T
+
+
+*/
+
 #include <set>
 #include <map>
 #include <iomanip>
@@ -27,6 +56,8 @@ board_t::~board_t() {
 
 std::ostream& operator<< (std::ostream& stream, const board_t& b) {
 
+
+    stream << "------ START internal representation ------------------" << std::endl;
     const char *charset = "ABCDEFGHJKLMNOPQRST";
 
     stream << "   ";
@@ -34,17 +65,18 @@ std::ostream& operator<< (std::ostream& stream, const board_t& b) {
         stream << charset[w] << " ";
     stream << std::endl;
     
-    for (int h = N - 1; h >= 0; --h) {
-        stream << std::setw(2) << (h + 1)  << " ";
+    for (int h = 0; h < N; ++h) {
+        stream << std::setw(2) << (19 - h)  << " ";
         for (int w = 0; w < N; ++w)
             stream  << b.fields[h][w] << " ";
-        stream << std::setw(2) << (h + 1)  << " ";
+        stream << std::setw(2) << (19 - h)  << " ";
         stream << std::endl;
     }
     stream << "  ";
     for (int w = 0; w < N; ++w)
         stream << " " << charset[w];
     stream << std::endl;
+    stream << "------ END internal representation ------------------" << std::endl;
 
     return stream;
 }
@@ -314,6 +346,9 @@ void board_t::feature_planes(int *planes, token_t self) const {
     const int NN = 19 * 19;
     const token_t other = opponent(self);
 
+    std::cout << *this << std::endl;
+      
+
     for (int h = 0; h < N; ++h) {
         for (int w = 0; w < N; ++w) {
 
@@ -460,6 +495,7 @@ void board_t::feature_planes(int *planes, token_t self) const {
             // this would require a small recursion
 
             // Sensibleness : 1 : Whether a move is legal and does not fill its own eyes
+            // TODO legacy !is_legal
             if (!is_legal(h, w, self)) {
                 planes[map3line(44, h, w)] = 1;
             }

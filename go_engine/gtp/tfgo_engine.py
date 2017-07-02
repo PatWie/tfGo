@@ -59,39 +59,21 @@ def clean(s):
 
 
 def tuple2string(pos):
-    """Convert tuple of position (x, y) into GTP moves
-
-    Remarks:
-        (0,1) is A1
-
-    Args:
-        pos ((int, int)): Description
-
-    Returns:
-        str: position description
-    """
+    # 12, 13 from top left --> O7
     charset = "ABCDEFGHJKLMNOPQRST"
     x, y = pos
-    return '%s%s' % (charset[x - 1], y)
+    xx = 19 - x
+    yy = charset[y]
+    return '%s%i' % (yy, xx)
 
 
 def string2tuple(ans):
-    """Parse a GTP position string into a tuple
-
-    Args:
-        ans (str): move encoded as string
-
-    Returns:
-        (int, int): decoded move
-    """
-    ans = clean(ans)
-
-    x = ans[0]
-    y = ans[1:]
+    # O7 --> 12, 13 from top left
     charset = "ABCDEFGHJKLMNOPQRST"
-    x = charset.find(x.upper()) + 1
-
-    return x, int(y)
+    x = ans[0]
+    x = charset.find(x.upper())
+    y = 19 - int(ans[1:])
+    return y, x
 
 
 class TfGoEngine(BaseEngine):
@@ -112,10 +94,6 @@ class TfGoEngine(BaseEngine):
 
     def call_boardsize(self, args=None):
         boardsize = int(args[0])
-
-        # white_board, black_board = self._get_board()
-        # print board2string(white_board, black_board)
-
         return self.bridge.send("boardsize {}\n".format(boardsize))
 
     def call_genmove(self, args=None):
@@ -123,8 +101,8 @@ class TfGoEngine(BaseEngine):
 
         # ask GnuGo for a move
         move = self._propose_move(color)
-        cc = 'O' if (color == 'W') else 'X'
-        print "TfGo[assistant] says '%s' for %s" % (move.replace('\n', ''), cc)
+        color_symb = 'O' if (color == 'W') else 'X'
+        print "TfGo[assistant] says '%s' for %s" % (move.replace('\n', ''), color_symb)
         if "pass" in move.lower():
             return "= pass"
         if "resign" in move.lower():
@@ -145,29 +123,30 @@ class TfGoEngine(BaseEngine):
 
         candidates = np.dstack(np.unravel_index(np.argsort(prob.ravel())[::-1], (19, 19)))
 
-        print "TfGO Top-10 predictions (legal moves)  for %s:" % cc
+        print "TfGO Top-10 predictions (legal moves)  for %s:" % color_symb
 
         found_legal_moves = 0
         for i in range(60):
             x, y = candidates[0][i][0], candidates[0][i][1]
-            pos = (y + 1, 19 - x)
+            move_description = tuple2string((x, y))
             p2 = prob[x][y]
 
-            if self._is_legal(color, pos):
+            if self._is_legal(color, move_description):
                 found_legal_moves += 1
-                print "%03i:  %s \t(%f)" % (i + 1, tuple2string(pos), p2)
+                print "%03i:  %s \t(%f)" % (i + 1, move_description, p2)
                 if found_legal_moves == 10:
                     break
 
         for i in range(19 * 19):
             x, y = candidates[0][i][0], candidates[0][i][1]
-            pos = (y + 1, 19 - x)
-            is_legal = 'legal' if self._is_legal(color, pos) else 'illegal'
+            move_description = tuple2string((x, y))
+            p2 = prob[x][y]
+            is_legal = 'legal' if self._is_legal(color, move_description) else 'illegal'
 
             if is_legal == 'legal':
-                print "tfgo plays", color + " " + tuple2string(pos)
-                self.bridge.send("play {} {}\n".format(color, tuple2string(pos)))
-                return "= " + tuple2string(pos)
+                print "tfgo plays", color + " " + move_description
+                self.bridge.send("play {} {}\n".format(color, move_description))
+                return "= " + move_description
 
         return ""
 
@@ -252,18 +231,18 @@ class TfGoEngine(BaseEngine):
         assert color in ['W', 'B']
         return self.bridge.send('gg_genmove {}\n'.format(color))
 
-    def _is_legal(self, color, pos):
+    def _is_legal(self, color, move_descr):
         """Check whether a token can be placed at a field.
 
         Args:
             color (str): either 'B' or 'W'
-            pos ((int, int)): field to play
+            move_descr : e.g. F7
 
         Returns:
             bool: valid move?
         """
         assert color in ['W', 'B']
-        ans = self.bridge.send("is_legal {} {}\n".format(color, tuple2string(pos)))
+        ans = self.bridge.send("is_legal {} {}\n".format(color, move_descr))
         ans = int(clean(ans))
         return (ans == 1)
 
