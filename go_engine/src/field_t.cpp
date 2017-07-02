@@ -4,7 +4,7 @@
 #include "board_t.h"
 #include "misc.h"
 
-field_t::field_t(int h, int w, const board_t const * b) 
+field_t::field_t(int h, int w, const board_t* b) 
 : token_(empty), group(nullptr), x_(h), y_(w), played_at(0), board(b) {}
 
 const token_t field_t::token() const {

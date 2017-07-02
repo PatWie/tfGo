@@ -14,7 +14,7 @@ class board_t;
 
 class group_t {
   public:
-    group_t(int groupid, const board_t const * board);
+    group_t(int groupid, const board_t* board);
     ~group_t();
 
     void add(field_t *s);
@@ -32,7 +32,7 @@ class group_t {
 
     // collection of pointers to stones
     std::vector<field_t *> stones;
-    const board_t const * board;
+    const board_t* board;
     int id;
 };
 

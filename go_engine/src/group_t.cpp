@@ -12,7 +12,7 @@
 
 
 
-group_t::group_t(int groupid, const board_t const * b) : board(b){
+group_t::group_t(int groupid, const board_t* b) : board(b){
     id = groupid;
 }
 group_t::~group_t() {}

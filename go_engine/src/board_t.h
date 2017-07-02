@@ -24,7 +24,7 @@ class board_t {
 
 
     /**
-     * @brief Just for convenience.
+     * @brief Just for convenience to allow easy outputs.
      * 
      * @param stream board configuration
      * @param b stream
@@ -34,14 +34,11 @@ class board_t {
     /**
      * @brief Set a stone and update groups.
      * 
-     * @param x vertical axis (top -> bottom)
-     * @param y horizontal axis (left ->right)
+     * @param pos (x, y) = [vertical axis (top -> bottom), y horizontal axis (left ->right)]
      * @param tok color of stone
      * @return 0 if success
      */
-    int play(int x, int y, token_t tok);
     int play(std::pair<int, int> pos, token_t tok);
-
 
     int set(int x, int y, token_t tok);
 
@@ -63,15 +60,14 @@ class board_t {
     /**
      * @brief test whether placing a token at x, y is legal for given player
      * 
-     * @param x [description]
-     * @param y [description]
+     * @param pos
      * @param tok checking for token color of tok
      * @return valid?
      */
     bool is_legal(std::pair<int, int> pos, token_t tok) const ;
-    bool is_legal(int x, int y, token_t tok) const ;
+    // bool is_legal(int x, int y, token_t tok) const ;
 
-    const field_t const * field(std::pair<int, int> pos) const;
+    const field_t* field(std::pair<int, int> pos) const;
 
     /**
      * @brief place token and count effect of captured stones
@@ -133,14 +129,25 @@ class board_t {
      * 
      * @return list of (x, y) pairs
      */
-     const std::vector<std::pair<int, int> > neighbor_fields(int x, int y)  const;
-     const std::vector<std::pair<int, int> > neighbor_fields(std::pair<int, int> pos)  const;
+
+    const std::vector<std::pair<int, int> > neighbor_fields(std::pair<int, int> pos)  const;
 
     bool is_forced_ladder_escape(std::pair<int, int> action,
                            token_t hunter,
-                           int remaining_attempts=0,
-                           group_t* focus=nullptr);
+                           int recursion_depth=0,
+                           group_t* focus=nullptr) const;
 
+
+    /**
+     * @brief check a move of hunter-player in capture_effort captures the group focus
+     * @details [long description]
+     * 
+     * @param capture_effort current move
+     * @param hunter_player aggressor
+     * @param recursion_depth number of look aheads
+     * @param focus group that should be captured
+     * @return true iff group can be captured
+     */
     bool is_forced_ladder_capture(std::pair<int, int> capture_effort,
                            token_t hunter,
                            int recursion_depth=0, group_t* focus=nullptr) const;

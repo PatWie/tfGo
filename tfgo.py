@@ -22,7 +22,7 @@ Re-Implementation of the Policy-Network (SL) from AlphaGo:
 
 BATCH_SIZE = 16
 SHAPE = 19
-NUM_PLANES = 47
+NUM_PLANES = 49
 
 
 class Model(ModelDesc):

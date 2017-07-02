@@ -12,8 +12,7 @@ from go_engine.python import goplanes
 from tensorpack.utils import get_rng
 import multiprocessing
 
-# the ladder heuristic is missing (2 planes), hence 47 instead of 49
-FEATURE_LEN = 47
+FEATURE_LEN = 49
 
 
 class GoGamesFromDir(tp.dataflow.DataFlow):

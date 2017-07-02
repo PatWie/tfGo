@@ -7,6 +7,8 @@ sys.path.insert(0, "../go_engine/python/")  # noqa
 from gnugo_engine import GnuGoEngine
 import goplanes
 
+NUM_FEATURES = 49
+
 until = 81
 next_is_white = (until % 2 == 0)
 
@@ -22,7 +24,7 @@ gnugo.call_show_board()
 gnugo_planes = gnugo.get_planes(next_is_white)
 
 
-tfgo_planes = np.zeros((47, 19, 19), dtype=np.int32)
+tfgo_planes = np.zeros((NUM_FEATURES, 19, 19), dtype=np.int32)
 next_move = goplanes.planes_from_file(fn + 'bin', tfgo_planes, until)
 x = next_move % 19
 y = next_move // 19
@@ -67,22 +69,26 @@ else:
     white_board = gnugo_planes[1, ...]
     black_board = gnugo_planes[0, ...]
 
-tfgo_planes_from_position = np.zeros((47, 19, 19), dtype=np.int32)
+tfgo_planes_from_position = np.zeros((NUM_FEATURES, 19, 19), dtype=np.int32)
 goplanes.planes_from_position(white_board, black_board, tfgo_planes_from_position, int(next_is_white))
+
+print "next move", next_move, x, y, tuple2string((x, y))
+
+for i in [0, 1, 2, 3] + range(12, 28) + range(20, 28) + [46]:
+    print "diff (gnugo vs. tfgo) in plane %i:" % i, np.sum(gnugo_planes[i, :, :] - tfgo_planes_from_position[i, :, :])
+
+print "legal moves"
+print tfgo_planes_from_position[44, :, :]
+print ""
+print tfgo_planes_from_position[45, :, :]
+
+gnugo.call_show_board()
+
 
 if next_is_white:
     print "situation for white"
 else:
     print "situation for black"
-
-print "next move", next_move, x, y, tuple2string((x, y))
-
-for i in [0, 1, 2, 3] + range(12, 28) + range(20, 28) + [44]:
-    print "diff (gnugo vs. tfgo) in plane %i:" % i, np.sum(gnugo_planes[i, :, :] - tfgo_planes_from_position[i, :, :])
-
-print "legal moves"
-print tfgo_planes_from_position[44, :, :]
-
 # def get_gnugo_board(fn, until=None):
 #     """Use GnuGO to compute final board of game.
 
@@ -126,7 +132,7 @@ print tfgo_planes_from_position[44, :, :]
 
 #         return white, black
 
-#     planes = np.zeros((47, 19, 19))
+#     planes = np.zeros((NUM_FEATURES, 19, 19))
 
 #     ans = get_board(board)
 #     bridge.close()
@@ -194,7 +200,7 @@ print tfgo_planes_from_position[44, :, :]
 #     """
 #     max_moves = os.path.getsize(fn + 'bin') / 2
 #     print('[own] has %i moves' % max_moves)
-#     planes = np.zeros((47, 19, 19), dtype=np.int32)
+#     planes = np.zeros((NUM_FEATURES, 19, 19), dtype=np.int32)
 #     if until is not None:
 #         until = max(0, until + 2)
 #     else:

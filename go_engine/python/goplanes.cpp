@@ -68,7 +68,7 @@ int play_game(SGFbin *Game, int* data, const int moves) {
 
         if (!is_pass) {
             if (is_move) {
-                b.play(xx, yy, current_player);
+                b.play({xx, yy}, current_player);
             } else {
                 b.set(xx, yy, current_player);
             }
@@ -155,10 +155,10 @@ void planes_from_position(int* bwhite, int wm, int wn,
         for (int y = 0; y < 19; ++y)
         {
             if (bwhite[19 * x + y] == 1) {
-                b.play(x, y, white);
+                b.play({x, y}, white);
             }
             if (bblack[19 * x + y] == 1) {
-                b.play(x, y, black);
+                b.play({x, y}, black);
             }
         }
     }

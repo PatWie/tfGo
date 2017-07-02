@@ -112,7 +112,7 @@ class GnuGoEngine(BaseEngine):
                     ans = self.bridge.send('is_legal %s %s%i\n' % (tmp, yy, xx)).split('\n')[0].replace('= ', '')
                     legal_cache[x, y] = int(ans)
 
-        planes[44, legal_cache == 1] = 1
+        planes[46, legal_cache == 1] = 1
         return planes
 
 

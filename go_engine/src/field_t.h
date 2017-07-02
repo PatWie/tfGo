@@ -16,7 +16,7 @@ class board_t;
 class field_t {
   public:
 
-    field_t(int h, int w, const board_t const * board);
+    field_t(int h, int w, const board_t* board);
 
     const token_t token() const;
 
@@ -40,7 +40,7 @@ class field_t {
     int x_;
     int y_;
     token_t token_;
-    const board_t const * board;
+    const board_t* board;
 };
 
 #endif
