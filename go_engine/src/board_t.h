@@ -8,6 +8,7 @@
 #include "field_t.h"
 
 #include <array>
+#include <random>
 #include <memory>
 #include <vector>
 #include <map>
@@ -20,6 +21,11 @@ class board_t {
      * @brief Create new board representation.
      */
     board_t();
+
+    /**
+     * @brief remove all groups
+     * @details [long description]
+     */
     ~board_t();
 
 
@@ -36,13 +42,20 @@ class board_t {
      * 
      * @param pos (x, y) = [vertical axis (top -> bottom), y horizontal axis (left ->right)]
      * @param tok color of stone
-     * @return 0 if success
+     * @return if success
      */
-    int play(std::pair<int, int> pos, token_t tok);
+    bool play(coord_t pos, token_t tok);
 
-    int set(int x, int y, token_t tok);
 
-    void update_groups(int x, int y);
+    /**
+     * @brief Update groups (merge groups, kill stones)
+     * @details Update all neighboring groups (add current field and merge groups)
+     * 
+     * @param x focused token position
+     * @param y focused token position
+     */
+    void update_groups(coord_t pos);
+
     /**
      * @brief Return a group for a given field.
      * @details This creates a new group for the field if the field was without a group.
@@ -64,10 +77,10 @@ class board_t {
      * @param tok checking for token color of tok
      * @return valid?
      */
-    bool is_legal(std::pair<int, int> pos, token_t tok) const ;
+    bool is_legal(coord_t pos, token_t tok) const ;
     // bool is_legal(int x, int y, token_t tok) const ;
 
-    const field_t* field(std::pair<int, int> pos) const;
+    const field_t* field(coord_t pos) const;
 
     /**
      * @brief place token and count effect of captured stones
@@ -110,7 +123,7 @@ class board_t {
      * 
      * @return [description]
      */
-    int liberties(std::pair<int, int> pos) const;
+    int liberties(coord_t pos) const;
     int liberties(int x, int y) const;
 
     /**
@@ -130,9 +143,9 @@ class board_t {
      * @return list of (x, y) pairs
      */
 
-    const std::vector<std::pair<int, int> > neighbor_fields(std::pair<int, int> pos)  const;
+    const std::vector<coord_t > neighbor_fields(coord_t pos)  const;
 
-    bool is_forced_ladder_escape(std::pair<int, int> action,
+    bool is_forced_ladder_escape(coord_t action,
                            token_t hunter,
                            int recursion_depth=0,
                            group_t* focus=nullptr) const;
@@ -148,7 +161,7 @@ class board_t {
      * @param focus group that should be captured
      * @return true iff group can be captured
      */
-    bool is_forced_ladder_capture(std::pair<int, int> capture_effort,
+    bool is_forced_ladder_capture(coord_t capture_effort,
                            token_t hunter,
                            int recursion_depth=0, group_t* focus=nullptr) const;
 
@@ -165,6 +178,15 @@ class board_t {
     int played_moves = 0;
     float score_black;
     float score_white;
+
+    std::uint64_t rehash(coord_t pos, token_t player) const;
+
+    std::uint64_t current_hash;
+    std::set<std::uint64_t> hash_history;
+
+    coord_t ko;
+
+
 
 };
 

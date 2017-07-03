@@ -79,6 +79,7 @@ int group_t::kill() {
     // kill entire group (remove stones from board, destroy group, return score)
     int score = stones.size();
     for (field_t * s : stones) {
+        // board->rehash(s->pos(), s->token());
         s->token(empty);
         s->played_at = 0;
         s->group = nullptr;

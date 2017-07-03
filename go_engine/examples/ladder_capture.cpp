@@ -104,7 +104,7 @@ void test_case002(){
 }
 
 int main(int argc, char const *argv[]) {
-    test_case002();
+    test_case001();
 }
 
 int main2(int argc, char const *argv[]) {

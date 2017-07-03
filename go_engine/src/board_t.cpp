@@ -1,8 +1,8 @@
 // Author: Patrick Wieschollek <mail@patwie.com>
 
-/* We use the GNUgo representation and map
+/* We use the GNUgo representation (output) and map internally
 
-        (2, 4) --> (15, C)
+        (x:4, y:2) <--> (15, C)
 
 cout < board << endl;
 
@@ -31,16 +31,14 @@ y  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8
    A B C D E F G H J K L M N O P Q R S T
 
 
-
-
 */
-
 
 
 #include <set>
 #include <map>
 #include <iomanip>
 
+#include "hash_t.h"
 #include "field_t.h"
 #include "group_t.h"
 #include "board_t.h"
@@ -55,7 +53,7 @@ void ident(int depth){
 }
 
 
-board_t::board_t() : score_black(0.f), score_white(0.f), played_moves(0) {
+board_t::board_t() : score_black(0.f), score_white(0.f), played_moves(0), current_hash(0) {
     // tell each field its coordinate
     for (int h = 0; h < N; ++h){
 
@@ -68,6 +66,9 @@ board_t::board_t() : score_black(0.f), score_white(0.f), played_moves(0) {
     // set counter for group-ids
     groupid = 0;
     current_player = black;
+
+    ko = {-1, -1};
+
 }
 
 board_t::~board_t() {
@@ -154,26 +155,79 @@ board_t* board_t::clone() const {
             
         }
     dest->current_player = current_player;
+    dest->current_hash = current_hash;
+    dest->hash_history = hash_history;
     return dest;
 }
 
 
 
-int board_t::play(std::pair<int, int> pos, token_t tok) {
+bool board_t::play(coord_t pos, token_t tok) {
     const int x = pos.first;
     const int y = pos.second;
-    int r = set(x, y, tok);
-    if (r == -1) return -1;
+    // int r = set(x, y, tok);
+//     if (r == -1) return false;
+//     current_player = opponent(current_player);
+//     return 0;
+// }
+
+
+
+// int board_t::set(int x, int y, token_t tok) {
+    if (!valid_pos(x) || !valid_pos(y)) {
+        std::cerr << "field is not valid" << std::endl;
+        return false;
+    }
+
+    if (fields[x][y].token() != empty) {
+        std::cerr << "field was not empty" << std::endl;
+        return false;
+    }
+
+    if(!is_legal({x, y}, tok)){
+        std::cerr << "move is not legal" << std::endl;
+        return false;
+    }
+
+    // remove ko
+    ko = {-1, -1};
+
+    // place token to field
+    fields[x][y].token(tok);
+    fields[x][y].played_at = played_moves++;
+
+    // update group structures
+    update_groups(pos);
+
+    // does this move captures some opponent stones?
+    int taken = count_and_remove_captured_stones(x, y, opponent(tok));
+
+    // TODO: check suicidal move, i.e. a move which kills its own group
+
+    // move was legal --> update history
+    current_hash = rehash({x, y}, tok);
+    hash_history.insert(current_hash);
+
+    // maintain scores
+    if (taken > 0) {
+        if (tok == white)
+            score_white += taken;
+        if (tok == black)
+            score_black += taken;
+
+    }
+
     current_player = opponent(current_player);
-    return 0;
+
+    return true;
 }
 
-const field_t* board_t::field(std::pair<int, int> pos) const{
+const field_t* board_t::field(coord_t pos) const{
     return &fields[pos.first][pos.second];
 }
 
 
-bool board_t::is_forced_ladder_capture(std::pair<int, int> capture_effort,
+bool board_t::is_forced_ladder_capture(coord_t capture_effort,
                                 token_t hunter_player,
                                 int recursion_depth, group_t* focus) const{
 
@@ -206,9 +260,7 @@ bool board_t::is_forced_ladder_capture(std::pair<int, int> capture_effort,
         board_t* tmp = clone();
         tmp->play(capture_effort, hunter_player);
 
-        // std::cout << *tmp << std::endl;
-
-        // get group of deep copy tmp
+        // get group of deep copy tmp ("tmp" and "this" are different objects with different groups)
         auto potential_ladder_capture_group = tmp->field(potential_ladder_capture_group_->stones[0]->pos())->group;
         auto possible_escapes = potential_ladder_capture_group->neighbors(empty);
 
@@ -222,17 +274,19 @@ bool board_t::is_forced_ladder_capture(std::pair<int, int> capture_effort,
             }
         }
 
-        bool found_at_least_one_captured_group = false;
+        // check possible escape routes from victim player
+        // if there exists an escape route --> we cannot force the capture
+        // --> check next possible move
+        bool no_escape_anymore = true;
         for(auto &&next_move : possible_escapes){
-            if(!tmp->is_forced_ladder_escape(next_move, hunter_player, recursion_depth + 1,
+            if(tmp->is_forced_ladder_escape(next_move, hunter_player, recursion_depth + 1,
                                                potential_ladder_capture_group)){
-                // we found one move that forces a ladder capture
-                found_at_least_one_captured_group = true;
+                no_escape_anymore = false;
                 break;
             }
         }
 
-        if(found_at_least_one_captured_group){
+        if(no_escape_anymore){
             delete tmp;
             return true;
         }
@@ -245,8 +299,17 @@ bool board_t::is_forced_ladder_capture(std::pair<int, int> capture_effort,
     return false;
 }
 
+std::uint64_t board_t::rehash(coord_t pos, token_t player) const{
+    const int x = pos.first;
+    const int y = pos.second;
 
-bool board_t::is_forced_ladder_escape(std::pair<int, int> escape_effort_field,
+    // see https://en.wikipedia.org/wiki/Zobrist_hashing
+    const std::uint64_t lut_entry = hash_t[player - 1][x][y];
+    return current_hash^lut_entry;
+}
+
+
+bool board_t::is_forced_ladder_escape(coord_t escape_effort_field,
                                token_t hunter_player,
                                int recursion_depth,
                                group_t* focus)  const{
@@ -284,24 +347,26 @@ bool board_t::is_forced_ladder_escape(std::pair<int, int> escape_effort_field,
         board_t* tmp = clone();
         tmp->play(escape_effort_field, victim_player);
 
-        // std::cout << *tmp << std::endl;
-          
-
+        // get group of deep copy tmp ("tmp" and "this" are different objects with different groups)
         auto current_check_group = tmp->field(current_check_group_->stones[0]->pos())->group;
 
-        // we escaped
+        // more than 3 liberties --> hunter cannot capture this group anymore
+        // --> victim can escape
         if(current_check_group->liberties() >= 3){
             delete tmp;
             return true;
         }
 
-        // not good, try next group
+        // not good (in atari)
+        // hunter will definitive be able to capture this group
+        // --> try next group
         if(current_check_group->liberties() == 1){
             delete tmp;
             continue;
         }
- 
-        // only two liberties are left ... check if they belong to a ladder
+
+
+        // only two liberties are left --> check if they belong to a ladder (recursion)
         auto remaining_liberty_fields = current_check_group->neighbors(empty);
         auto it = remaining_liberty_fields.begin();
         auto move_first = *it; it++;
@@ -309,67 +374,36 @@ bool board_t::is_forced_ladder_escape(std::pair<int, int> escape_effort_field,
 
         bool first_is_capture = tmp->is_forced_ladder_capture(move_first, hunter_player,
                                         recursion_depth + 1, current_check_group);
+   
         bool second_is_capture = tmp->is_forced_ladder_capture(move_second, hunter_player,
                                         recursion_depth + 1, current_check_group);
 
-        // can hunter still force the capture?
+
+        // can hunter still force the capture? --> try next possible escape move
         if(first_is_capture || second_is_capture){
             delete tmp;
             continue;
         }
 
+        // hunter cannot capture the victim anymore --> stop here --> we can escape
+        if(!first_is_capture && !second_is_capture){
+            delete tmp;
+            return true;
+        }
+
         delete tmp;
-        return true;
+        
     }
 
     return false;
 
 }
 
-
-int board_t::set(int x, int y, token_t tok) {
-    if (!valid_pos(x) || !valid_pos(y)) {
-        std::cerr << "field is not valid" << std::endl;
-        return -1;
-    }
-
-    if (fields[x][y].token() != empty) {
-        std::cerr << "field was not empty" << std::endl;
-        return -1;
-    }
-
-    if(!is_legal({x, y}, tok)){
-        std::cerr << "move is not legal" << std::endl;
-        return -1;
-    }
-
-    // place token to field
-    fields[x][y].token(tok);
-    fields[x][y].played_at = played_moves++;
-
-    // update group structures
-    update_groups(x, y);
-
-    // does this move captures some opponent stones?
-    int taken = count_and_remove_captured_stones(x, y, opponent(tok));
-
-    // TODO: check suicidal move, i.e. a move which kills its own group
-    // TODO: check ko, i.e. the same position should not appear on the board again (hashing?)
-
-    // maintain scores
-    if (taken > 0) {
-        if (tok == white)
-            score_white += taken;
-        if (tok == black)
-            score_black += taken;
-    }
-    return 0;
-}
- const std::vector<std::pair<int, int> > board_t::neighbor_fields(std::pair<int, int> pos) const {
+ const std::vector<coord_t > board_t::neighbor_fields(coord_t pos) const {
     const int x = pos.first;
     const int y = pos.second;
 
-    std::vector<std::pair<int, int> > n;
+    std::vector<coord_t > n;
     if(valid_pos(x - 1))
         n.push_back({x - 1, y});
     if(valid_pos(x + 1))
@@ -381,14 +415,10 @@ int board_t::set(int x, int y, token_t tok) {
     return n;
 }
 
-/**
- * @brief Update groups (merge, kill)
- * @details Update all neighboring groups (add current field and merge groups)
- * 
- * @param x focused token position
- * @param y focused token position
- */
-void board_t::update_groups(int x, int y) {
+
+void board_t::update_groups(coord_t pos) {
+    const int x = pos.first;
+    const int y = pos.second;
 
     token_t current = fields[x][y].token();
     field_t& current_stone = fields[x][y];
@@ -416,12 +446,21 @@ const token_t board_t::opponent(token_t tok) const {
     return (tok == white) ? black : white;
 }
 
-bool board_t::is_legal(std::pair<int, int> pos, token_t tok) const {
+bool board_t::is_legal(coord_t pos, token_t tok) const {
     const int x = pos.first;
     const int y = pos.second;
     // position has already a stone ?
     if (fields[x][y].token() != empty)
         return false;
+
+    if(ko == pos){
+        return false;
+    }
+
+    // check super-ko
+    if(contains(hash_history, rehash(pos, tok))){
+        return false;
+    }
 
     // // check own eye (special case from below)
     // bool is_eye = true;
@@ -445,7 +484,7 @@ bool board_t::is_legal(std::pair<int, int> pos, token_t tok) const {
     // placing that stone would cause the group to only have liberty afterwards
     board_t* copy = clone();
     copy->fields[x][y].token(tok);
-    copy->update_groups(x, y);
+    copy->update_groups(pos);
     copy->count_and_remove_captured_stones(x, y, opponent(tok));
     copy->count_and_remove_captured_stones(x, y, tok);
     bool self_atari = (copy->liberties(x, y) == 0);
@@ -462,7 +501,7 @@ int board_t::estimate_captured_stones(int x, int y, token_t color_place, token_t
 
     board_t* copy = clone();
     copy->fields[x][y].token(color_place);
-    copy->update_groups(x, y);
+    copy->update_groups({x, y});
     int scores = copy->count_and_remove_captured_stones(x, y, color_count);
     delete copy;
 
@@ -477,17 +516,23 @@ int board_t::count_and_remove_captured_stones(int x, int y, token_t focus) {
         field_t& other_stone = fields[n.first][n.second];
         if (other_stone.token() == focus)
             if (liberties(n.first, n.second) == 0){
+
                 const int gid = other_stone.group->id;
+                // set ko
+                if(other_stone.group->stones.size() == 1){
+                    ko = other_stone.group->stones[0]->pos();
+                }
                 scores += other_stone.group->kill();
                 groups.erase(gid);
             }
+
     }
 
     return scores;
 }
 
 // int board_t::liberties(const field_t field) const{
-int board_t::liberties(std::pair<int, int> pos) const{
+int board_t::liberties(coord_t pos) const{
     return liberties(pos.first, pos.second);
 }
 int board_t::liberties(int x, int y) const{

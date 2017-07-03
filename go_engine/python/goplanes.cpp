@@ -42,7 +42,7 @@ int play_game(SGFbin *Game, int* data, const int moves) {
         xx = y;
         yy = x;
 
-        b.set(xx, yy, current_player);
+        b.play({xx, yy}, current_player);
         Game->parse(offset, &x, &y, &is_white, &is_move, &is_pass);
     }
 
@@ -70,7 +70,7 @@ int play_game(SGFbin *Game, int* data, const int moves) {
             if (is_move) {
                 b.play({xx, yy}, current_player);
             } else {
-                b.set(xx, yy, current_player);
+                b.play({xx, yy}, current_player);
             }
         }
     }
