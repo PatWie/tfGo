@@ -56,7 +56,7 @@ int play_game(SGFbin *Game, int* data, const int moves) {
     for (; offset < evaluate_until; offset++) {
         // parse move
         Game->parse(offset, &x, &y, &is_white, &is_move, &is_pass);
-        Game->debug(offset);
+        // Game->debug(offset);
 
         current_player = is_white ? white : black;
         opponent_player = is_white ? black : white;
@@ -86,8 +86,8 @@ int play_game(SGFbin *Game, int* data, const int moves) {
     int xx = 0, yy = 0;
     xx = y;
     yy = x;
-    std::cout << "next move << "<< xx << " : "<< yy << std::endl;
-    Game->debug(evaluate_until);
+    // std::cout << "next move << "<< xx << " : "<< yy << std::endl;
+    // Game->debug(evaluate_until);
     const int next_move = 19 * yy + xx;
     return next_move;
 }

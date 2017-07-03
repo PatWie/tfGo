@@ -75,11 +75,11 @@ const std::set<std::pair<int, int> > group_t::neighbors(const token_t filter)  c
     return n;
 }
 
-int group_t::kill() {
+int group_t::kill(board_t *b) {
     // kill entire group (remove stones from board, destroy group, return score)
     int score = stones.size();
     for (field_t * s : stones) {
-        // board->rehash(s->pos(), s->token());
+        b->rehash(s->pos(), s->token());
         s->token(empty);
         s->played_at = 0;
         s->group = nullptr;

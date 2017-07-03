@@ -145,7 +145,17 @@ class board_t {
 
     const std::vector<coord_t > neighbor_fields(coord_t pos)  const;
 
-    bool is_forced_ladder_escape(coord_t action,
+    /**
+     * @brief check if a move of defender-player is a successful escape
+     * @details [long description]
+     * 
+     * @param escape_effort current move to test
+     * @param hunter agressor
+     * @param recursion_depth number of look aheads
+     * @param ocus group that should be captured
+     * @return true iff group can escape from ladder attack
+     */
+    bool is_forced_ladder_escape(coord_t escape_effort,
                            token_t hunter,
                            int recursion_depth=0,
                            group_t* focus=nullptr) const;
@@ -155,7 +165,7 @@ class board_t {
      * @brief check a move of hunter-player in capture_effort captures the group focus
      * @details [long description]
      * 
-     * @param capture_effort current move
+     * @param capture_effort current move to test
      * @param hunter_player aggressor
      * @param recursion_depth number of look aheads
      * @param focus group that should be captured
@@ -163,30 +173,53 @@ class board_t {
      */
     bool is_forced_ladder_capture(coord_t capture_effort,
                            token_t hunter,
-                           int recursion_depth=0, group_t* focus=nullptr) const;
+                           int recursion_depth=0,
+                           group_t* focus=nullptr) const;
 
 
+    /**
+     * @brief implementation of Zobrist hashing
+     * @details We need this for the super-ko rule
+     * 
+     * @param pos position which changes
+     * @param player action of player
+     * 
+     * @return new hash for position with that action
+     */
+    std::uint64_t rehash(coord_t pos, token_t player) const;
+
+
+    /**
+     * @brief check if it looks like an eye
+     * @details this is just a weak version of this check
+     * 
+     * @param pos [description]
+     * @param player [description]
+     * 
+     * @return [description]
+     */
+    const bool looks_like_an_eye(coord_t pos, token_t player) const;
+
+    /* representation of board */
     std::vector<std::vector<field_t> > fields;
-
+    /* representation of groups (connected stones) */
     std::map<int, group_t*> groups;
+    /* iter to find a group */
     std::map<int, group_t*>::iterator groups_iter;
 
-    // just for recursion
-    token_t current_player;
 
+    /* helper for unique group ids */
     int groupid;
-    int played_moves = 0;
+    /* helper for counting moves */
+    int moves_counter = 0;
+    /* helper for maintain scores */
     float score_black;
     float score_white;
-
-    std::uint64_t rehash(coord_t pos, token_t player) const;
 
     std::uint64_t current_hash;
     std::set<std::uint64_t> hash_history;
 
     coord_t ko;
-
-
 
 };
 

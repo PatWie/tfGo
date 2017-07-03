@@ -44,34 +44,27 @@ y  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8
 #include "board_t.h"
 
 
-void ident(int depth){
-    for (int i = 0; i < depth; ++i)
-    {
-        std::cout << "  ";
-          
-    }
-}
 
-
-board_t::board_t() : score_black(0.f), score_white(0.f), played_moves(0), current_hash(0) {
-    // tell each field its coordinate
+board_t::board_t() : score_black(0.f), score_white(0.f), moves_counter(0), current_hash(0) {
+    // create all fields with ptr to this board and tell them their position
     for (int h = 0; h < N; ++h){
-
         std::vector<field_t> row;
-        for (int w = 0; w < N; ++w){
+        for (int w = 0; w < N; ++w)
             row.push_back(field_t(h, w, this));
-        }
         fields.push_back(row);
     }
-    // set counter for group-ids
-    groupid = 0;
-    current_player = black;
 
+    // to identify groups, we give them unique names (auto-incemenr like)
+    groupid = 0;
+
+    // history fo ko-rule
     ko = {-1, -1};
 
+    // we do not maintain the "current_player"
 }
 
 board_t::~board_t() {
+    // proper deletion of groups
     for(auto &g : groups)
         delete g.second;
 }
@@ -79,8 +72,6 @@ board_t::~board_t() {
 
 
 std::ostream& operator<< (std::ostream& stream, const board_t& b) {
-
-
     stream << "------ START internal representation ------------------" << std::endl;
     stream << std::endl;
     stream << "            WHITE (O) vs BLACK (X) " << std::endl;
@@ -92,8 +83,6 @@ std::ostream& operator<< (std::ostream& stream, const board_t& b) {
             stream << w << " ";
         else
             stream << (w % 10) << " ";
-
-        
     }
     stream << std::endl;
     stream << std::endl;
@@ -122,11 +111,13 @@ std::ostream& operator<< (std::ostream& stream, const board_t& b) {
 
 
 group_t* board_t::find_or_create_group(int id){
+    // try to get group by id
     groups_iter = groups.find(id);
     if (groups_iter != groups.end()){
         return groups_iter->second;
     }
     else{
+        // group with id does not exists --> create a new group with that id
         groups[id] = new group_t(id, this);
         return groups[id];
     }
@@ -134,29 +125,34 @@ group_t* board_t::find_or_create_group(int id){
 
 
 board_t* board_t::clone() const {
+    // a deep clone
 
     board_t* dest = new board_t();
-    dest->played_moves = played_moves;
+    dest->moves_counter = moves_counter;
     dest->groupid = groupid;
 
+    // this hurts, but I currently have no idea what a more efficient way looks like
     for (int h = 0; h < N; ++h)
         for (int w = 0; w < N; ++w){
             const field_t &src_f = fields[h][w];
-            field_t &dest_f = dest->fields[h][w];
-
+            
             if (src_f.token() != empty)
             {
+                field_t &dest_f = dest->fields[h][w];
+
                 dest_f.token(src_f.token());
                 dest_f.played_at = src_f.played_at;
 
+                // ouch, again (TODO: think about iterating instead over groups)
                 dest_f.group = dest->find_or_create_group(src_f.group->id);
                 dest_f.group->add(&dest_f);
             }
             
         }
-    dest->current_player = current_player;
+
     dest->current_hash = current_hash;
     dest->hash_history = hash_history;
+    dest->ko = ko;
     return dest;
 }
 
@@ -165,17 +161,10 @@ board_t* board_t::clone() const {
 bool board_t::play(coord_t pos, token_t tok) {
     const int x = pos.first;
     const int y = pos.second;
-    // int r = set(x, y, tok);
-//     if (r == -1) return false;
-//     current_player = opponent(current_player);
-//     return 0;
-// }
 
-
-
-// int board_t::set(int x, int y, token_t tok) {
     if (!valid_pos(x) || !valid_pos(y)) {
         std::cerr << "field is not valid" << std::endl;
+        // *(char *)0 = 0; for debugging
         return false;
     }
 
@@ -194,15 +183,13 @@ bool board_t::play(coord_t pos, token_t tok) {
 
     // place token to field
     fields[x][y].token(tok);
-    fields[x][y].played_at = played_moves++;
+    fields[x][y].played_at = moves_counter++;
 
     // update group structures
     update_groups(pos);
 
     // does this move captures some opponent stones?
     int taken = count_and_remove_captured_stones(x, y, opponent(tok));
-
-    // TODO: check suicidal move, i.e. a move which kills its own group
 
     // move was legal --> update history
     current_hash = rehash({x, y}, tok);
@@ -217,8 +204,6 @@ bool board_t::play(coord_t pos, token_t tok) {
 
     }
 
-    current_player = opponent(current_player);
-
     return true;
 }
 
@@ -231,7 +216,7 @@ bool board_t::is_forced_ladder_capture(coord_t capture_effort,
                                 token_t hunter_player,
                                 int recursion_depth, group_t* focus) const{
 
-    const token_t victim_player = opponent(hunter_player);
+    const token_t defender_player = opponent(hunter_player);
 
     // illegal moves are never ladder-captures
     if(!is_legal(capture_effort, hunter_player))
@@ -241,21 +226,21 @@ bool board_t::is_forced_ladder_capture(coord_t capture_effort,
     if(recursion_depth > 100)
         return true;
 
-    // collect all fields that might be a victim_player of a ladder capture
+    // collect all fields that might be a defender_player of a ladder capture
     std::set<group_t *> groups_to_check;
 
     // called with default args (no particular focus?)
     if(focus == nullptr){
         auto neighbor_groups_stones = neighbor_fields(capture_effort);
         for(auto &&stone : neighbor_groups_stones)
-            if(field(stone)->token() == victim_player)
+            if(field(stone)->token() == defender_player)
                 if(field(stone)->group->liberties() == 2)
                     groups_to_check.insert(field(stone)->group);
     }else{
         groups_to_check.insert(focus);
     }
 
-    // loop over all victim_player fields
+    // loop over all defender_player fields
     for(auto &&potential_ladder_capture_group_ : groups_to_check){
         board_t* tmp = clone();
         tmp->play(capture_effort, hunter_player);
@@ -274,7 +259,7 @@ bool board_t::is_forced_ladder_capture(coord_t capture_effort,
             }
         }
 
-        // check possible escape routes from victim player
+        // check possible escape routes from defender player
         // if there exists an escape route --> we cannot force the capture
         // --> check next possible move
         bool no_escape_anymore = true;
@@ -300,12 +285,21 @@ bool board_t::is_forced_ladder_capture(coord_t capture_effort,
 }
 
 std::uint64_t board_t::rehash(coord_t pos, token_t player) const{
+    if(player == empty)
+        return current_hash;
     const int x = pos.first;
     const int y = pos.second;
 
     // see https://en.wikipedia.org/wiki/Zobrist_hashing
     const std::uint64_t lut_entry = hash_t[player - 1][x][y];
     return current_hash^lut_entry;
+}
+
+const bool board_t::looks_like_an_eye(coord_t pos, token_t player) const{
+    for(auto &&p : neighbor_fields(pos))
+        if(field(p)->token() != player )
+            return false;
+    return true;
 }
 
 
@@ -318,11 +312,11 @@ bool board_t::is_forced_ladder_escape(coord_t escape_effort_field,
     if(recursion_depth > 100)
         return false;
 
-    // the victim player always tries to escape
-    const token_t victim_player = opponent(hunter_player);
+    // the defender player always tries to escape
+    const token_t defender_player = opponent(hunter_player);
 
     // escape route is illegal
-    if(!is_legal(escape_effort_field, victim_player))
+    if(!is_legal(escape_effort_field, defender_player))
         return false;
     
     // these groups might help to escape from the current threat
@@ -332,7 +326,7 @@ bool board_t::is_forced_ladder_escape(coord_t escape_effort_field,
         // try to find all groups which belong to a ladder
         auto neighbor_groups_stones = neighbor_fields(escape_effort_field);
         for(auto &&possible_ladder_stones : neighbor_groups_stones){
-            if(field(possible_ladder_stones)->token() == victim_player)
+            if(field(possible_ladder_stones)->token() == defender_player)
                 if(field(possible_ladder_stones)->group->liberties() == 1){
                     groups_to_check.insert(field(possible_ladder_stones)->group);
                 }
@@ -345,13 +339,13 @@ bool board_t::is_forced_ladder_escape(coord_t escape_effort_field,
     for(auto &&current_check_group_ : groups_to_check){
 
         board_t* tmp = clone();
-        tmp->play(escape_effort_field, victim_player);
+        tmp->play(escape_effort_field, defender_player);
 
         // get group of deep copy tmp ("tmp" and "this" are different objects with different groups)
         auto current_check_group = tmp->field(current_check_group_->stones[0]->pos())->group;
 
         // more than 3 liberties --> hunter cannot capture this group anymore
-        // --> victim can escape
+        // --> defender can escape
         if(current_check_group->liberties() >= 3){
             delete tmp;
             return true;
@@ -385,7 +379,7 @@ bool board_t::is_forced_ladder_escape(coord_t escape_effort_field,
             continue;
         }
 
-        // hunter cannot capture the victim anymore --> stop here --> we can escape
+        // hunter cannot capture the defender anymore --> stop here --> we can escape
         if(!first_is_capture && !second_is_capture){
             delete tmp;
             return true;
@@ -449,54 +443,43 @@ const token_t board_t::opponent(token_t tok) const {
 bool board_t::is_legal(coord_t pos, token_t tok) const {
     const int x = pos.first;
     const int y = pos.second;
+
+    if (!valid_pos(x) || !valid_pos(y))
+        return false;
+
     // position has already a stone ?
     if (fields[x][y].token() != empty)
         return false;
 
-    if(ko == pos){
+    // check ko rule
+    if(ko == pos)
         return false;
-    }
 
     // check super-ko
-    if(contains(hash_history, rehash(pos, tok))){
+    if(contains(hash_history, rehash(pos, tok)))
         return false;
-    }
 
-    // // check own eye (special case from below)
-    // bool is_eye = true;
-    // if (is_eye && valid_pos(x + 1))
-    //     if(fields[x + 1][y].token() != tok)
-    //         is_eye = false;
-    // if (is_eye && valid_pos(x - 1))
-    //     if(fields[x - 1][y].token() != tok)
-    //         is_eye = false;
-    // if (is_eye && valid_pos(y + 1))
-    //     if(fields[x][y + 1].token() != tok)
-    //         is_eye = false;
-    // if (is_eye && valid_pos(y - 1))
-    //     if(fields[x][y - 1].token() != tok)
-    //         is_eye = false;
-
-    // if(is_eye)
-    //     return false;
-
-    // test self atari
-    // placing that stone would cause the group to only have liberty afterwards
+    // test suicide
     board_t* copy = clone();
     copy->fields[x][y].token(tok);
     copy->update_groups(pos);
     copy->count_and_remove_captured_stones(x, y, opponent(tok));
     copy->count_and_remove_captured_stones(x, y, tok);
-    bool self_atari = (copy->liberties(x, y) == 0);
-    // bool self_atari = (copy->fields[x][y].group->liberties(copy) == 0);
+    bool self_suicide = (copy->liberties(x, y) == 0);
     delete copy;
-    return !self_atari;
+
+    return !self_suicide;
 
 }
 
 int board_t::estimate_captured_stones(int x, int y, token_t color_place, token_t color_count)  const {
+    if (!valid_pos(x) || !valid_pos(y))
+        return 0;
 
     if (fields[x][y].token() != empty)
+        return 0;
+
+    if(!is_legal({x, y}, color_place))
         return 0;
 
     board_t* copy = clone();
@@ -515,27 +498,28 @@ int board_t::count_and_remove_captured_stones(int x, int y, token_t focus) {
     for(auto &&n : neighbors){
         field_t& other_stone = fields[n.first][n.second];
         if (other_stone.token() == focus)
-            if (liberties(n.first, n.second) == 0){
-
+            if (liberties(n) == 0){
                 const int gid = other_stone.group->id;
-                // set ko
+                // update ko for testing later legal_moves
                 if(other_stone.group->stones.size() == 1){
                     ko = other_stone.group->stones[0]->pos();
                 }
-                scores += other_stone.group->kill();
+                // this will also change the hash of the current board
+                scores += other_stone.group->kill(this);
                 groups.erase(gid);
             }
-
     }
 
     return scores;
 }
 
-// int board_t::liberties(const field_t field) const{
+
 int board_t::liberties(coord_t pos) const{
     return liberties(pos.first, pos.second);
 }
+
 int board_t::liberties(int x, int y) const{
+    // we keep this version for the features-planes
     if(fields[x][y].token() == empty)
         return 0;
     else
@@ -544,13 +528,15 @@ int board_t::liberties(int x, int y) const{
 }
 
 void board_t::feature_planes(int *planes, token_t self) const {
-    // see https://gogameguru.com/i/2016/03/deepmind-mastering-go.pdf (Table 2)
+    // see https://gogameguru.com/i/2016/03/deepmind-mastering-go.pdf (Table 2, p. 31)
+    /*
+    This method assumes we regard the current board from the perspective of "self",
+    which can be either "black" or "white".
+    */
 
-    const int NN = 19 * 19;
+
     const token_t other = opponent(self);
 
-    // std::cout << *this << std::endl;
-      
 
     for (int h = 0; h < N; ++h) {
         for (int w = 0; w < N; ++w) {
@@ -567,14 +553,14 @@ void board_t::feature_planes(int *planes, token_t self) const {
                 planes[map3line(2, h, w)] = 1;
 
             // Ones
-            // fill entire plane with ones
+            // fill entire plane with ones (mark area to play)
             planes[map3line(3, h, w)] = 1;
 
             // Turns since
             // counter number of turns since the token was placed
             if (fields[h][w].token() != empty) {
 
-                const int since = played_moves - fields[h][w].played_at + 1;
+                const int since = moves_counter - fields[h][w].played_at + 1;
 
                 if (since == 1)
                     planes[map3line(4, h, w)] = 1;
@@ -704,8 +690,8 @@ void board_t::feature_planes(int *planes, token_t self) const {
                     planes[map3line(45, h, w)] = 1;
             }
 
-            // Sensibleness : 1 : Whether a move is legal and does not fill its own eyes
-            if (is_legal({h, w}, self)) {
+            // Sensibleness : 1 : Whether a move is legal does not fill its own eyes
+            if (is_legal({h, w}, self) && !looks_like_an_eye({h, w}, self)) {
                 planes[map3line(46, h, w)] = 1;
             }
 

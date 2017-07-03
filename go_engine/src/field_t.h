@@ -19,8 +19,8 @@ class field_t {
     field_t(int h, int w, const board_t* board);
 
     const token_t token() const;
-
     void token(const token_t tok);
+
     void pos(int x, int y);
     std::pair<int, int> pos();
 
@@ -30,7 +30,6 @@ class field_t {
     friend std::ostream& operator<< (std::ostream& stream, const field_t& stone);
 
     const std::set<std::pair<int, int> > neighbors(const token_t filter)  const;
-
 
     group_t* group;
     int played_at;

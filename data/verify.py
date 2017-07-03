@@ -58,7 +58,7 @@ print "tuple2string", (x, y)
 print "tuple2string", tuple2string((x, y))
 print "tuple2string", string2tuple(tuple2string((x, y)))
 
-for i in [0, 1, 2, 3] + range(12, 28) + range(20, 28) + [44]:
+for i in [0, 1, 2, 3] + range(12, 28) + range(20, 28):
     print "plane %i:" % i, np.sum(gnugo_planes[i, :, :] - tfgo_planes[i, :, :])
 
 
@@ -78,9 +78,8 @@ for i in [0, 1, 2, 3] + range(12, 28) + range(20, 28) + [46]:
     print "diff (gnugo vs. tfgo) in plane %i:" % i, np.sum(gnugo_planes[i, :, :] - tfgo_planes_from_position[i, :, :])
 
 print "legal moves"
-print tfgo_planes_from_position[44, :, :]
-print ""
-print tfgo_planes_from_position[45, :, :]
+print tfgo_planes_from_position[46, :, :]
+
 
 gnugo.call_show_board()
 

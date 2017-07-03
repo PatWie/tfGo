@@ -42,7 +42,6 @@ void test_case001(){
     std::cout << "starting in" <<std::endl << b << std::endl;
       
 
-    b.current_player = black;
     std::cout << b.is_forced_ladder_capture({1, 2}, black, 0) << "vs. 1"<< std::endl;
     std::cout << b.is_forced_ladder_capture({0, 1}, black, 20) << "vs. 0" << std::endl;
 
@@ -92,7 +91,6 @@ void test_case002(){
     std::cout << "starting in" <<std::endl << b << std::endl;
       
 
-    b.current_player = black;
     std::cout << b.is_forced_ladder_capture({3, 2}, black) << "vs. 0"<< std::endl;
     // std::cout << b.is_forced_ladder_capture({0, 1}, black, 20) << "vs. 0" << std::endl;
 
@@ -105,6 +103,7 @@ void test_case002(){
 
 int main(int argc, char const *argv[]) {
     test_case001();
+    test_case002();
 }
 
 int main2(int argc, char const *argv[]) {

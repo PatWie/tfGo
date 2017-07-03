@@ -30,8 +30,8 @@ void SGFbin::debug(unsigned int step) {
            &x, &y, 
            &is_white, &is_move, &is_pass);
 
-    char *charset = "ABCDEFGHJKLMNOPQRST";
-    char *charset2 = "abcdefghijklmnopqrs";
+    const char *charset = "ABCDEFGHJKLMNOPQRST";
+    const char *charset2 = "abcdefghijklmnopqrs";
 
     if(is_white){
         if(is_move){

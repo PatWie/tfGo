@@ -37,7 +37,7 @@ class GameDecoder(MapData):
 
     bytes ---> [features, next_move]
     """
-    def __init__(self, df, random_move=True, until=None):
+    def __init__(self, df, random_move=True, until=None, verbose=False):
         """Yield a board configuration and next move from a LMDB data point
 
         Args:
@@ -57,10 +57,13 @@ class GameDecoder(MapData):
             # all move up to the last one (we want to predict at least one move)
             move_id = 1 + max_moves - 2
             if random_move:
-                move_id = rng.randint(1, max_moves - 1)
+                move_id = rng.randint(2, max_moves - 2)
             else:
                 if until:
                     move_id = until
+
+            if verbose:
+                print move_id, np.array(raw).astype(np.uint8)
 
             features = np.zeros((FEATURE_LEN, 19, 19), dtype=np.int32)
             next_move = goplanes.planes_from_bytes(raw.tobytes(), features, move_id)
@@ -191,9 +194,11 @@ if __name__ == '__main__':
             dftools.dump_dataflow_to_lmdb(df, args.lmdb + 'go.lmdb')
 
     if args.action == 'benchmark':
+
         df = LMDBDataPoint(args.lmdb, shuffle=False)
         df = PrefetchData(df, 5000, 1)
-        df = GameDecoder(df)
+        # df = GameDecoder(df, verbose=True)
+        df = GameDecoder(df, verbose=False)
         df = PrefetchDataZMQ(df, min(20, multiprocessing.cpu_count()))
         df.reset_state()
         TestDataSpeed(df, size=50000).start_test()
@@ -242,7 +247,7 @@ if __name__ == '__main__':
                 x = next_move % 19
                 y = next_move // 19
                 print "next move", next_move, x, y, tuple2string((x, y))
-                planes = D4_planes[version * 47:version * 47 + 48]
+                planes = D4_planes[version * FEATURE_LEN:version * FEATURE_LEN + FEATURE_LEN + 1]
 
                 bboard = np.zeros((19, 19), dtype=str)
                 bboard[planes[0, :, :] == 1] = 'x'  # own stones
@@ -255,3 +260,5 @@ if __name__ == '__main__':
                     print " ".join(bboard[i, :])
 
                 print D4_next_move_as_plane[version]
+                D4_next_move_as_plane[version, x, y] = 0
+                print "sum", D4_next_move_as_plane[version].sum()
